@@ -1,0 +1,17 @@
+# Kun for utvikling (kap. 15). Servermodus (M9) bruker medfølgende
+# Postgres-binærer i DMG-en, ikke Docker.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pietra
+      POSTGRES_PASSWORD: pietra
+      POSTGRES_DB: pietra_unica_crm
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:
