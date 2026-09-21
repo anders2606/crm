@@ -3,34 +3,18 @@
 // - en selger kan ikke åpne administrasjonssider
 // - administrator kan opprette en ny rolle med valgte rettigheter uten kodeendring
 // - hver endring gir en rad i AuditLog med før/etter-verdi
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 
 import { generateTotp } from '../../src/lib/auth/totp';
 import { E2E_ADMIN, E2E_SELGER, TEST_DATABASE_URL } from './global-setup';
+import { loginAs, submitCredentials } from './helpers';
 
 const prisma = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
 
 test.afterAll(async () => {
   await prisma.$disconnect();
 });
-
-async function submitCredentials(page: Page, email: string, password: string) {
-  await page.goto('/login');
-  await page.getByLabel('E-post').fill(email);
-  await page.getByLabel('Passord').fill(password);
-  await page.getByRole('button', { name: 'Logg inn' }).click();
-}
-
-async function loginAs(page: Page, creds: { email: string; password: string; totpSecret: string }) {
-  await submitCredentials(page, creds.email, creds.password);
-  await page.getByLabel('6-sifret kode').fill(generateTotp(creds.totpSecret));
-  await page.getByRole('button', { name: 'Bekreft' }).click();
-  // Innlogging skjer via en server action (fetch + klientnavigasjon), ikke en
-  // vanlig skjemainnsending – vent eksplisitt på at dashbordet er lastet før
-  // testen går videre, ellers kan neste steg treffe serveren før sesjonen er satt.
-  await page.waitForURL('/');
-}
 
 test('feil passord slipper ikke brukeren inn', async ({ page }) => {
   await submitCredentials(page, E2E_ADMIN.email, 'feil-passord');

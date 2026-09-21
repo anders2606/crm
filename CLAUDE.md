@@ -32,7 +32,7 @@ Eier er ikke utvikler. Forklar valg og kommandoer kort og på norsk, og si tydel
 | Milepæl | Status |
 | --- | --- |
 | M0 Fundament | Bygget (se README for detaljer og gjenstående DR-08/M9-punkter) |
-| M1 Kunder og leverandører | Ikke startet |
+| M1 Kunder og leverandører | Bygget (se README for detaljer og bevisst utsatte BØR-punkter) |
 | M2 Dokumenter | Ikke startet |
 | M3 E-post | Ikke startet |
 | M4 Materialbibliotek | Ikke startet |

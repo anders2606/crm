@@ -25,6 +25,7 @@ model User {
   roles      UserRole[]
   sessions   Session[]
   auditLogs  AuditLog[] @relation("AuditLogUser")
+  tasks      Task[]
 
   @@map("users")
 }
@@ -109,4 +110,210 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// M1 Kunder og leverandører (KU-01–06, KU-08 [kun datamodell], KU-11, KU-12,
+// LE-01–05, LE-09, GE-07).
+//
+// ContactPerson/Address/Consent kobles til enten Customer ELLER Supplier
+// (aldri begge) via to valgfrie fremmednøkler + en CHECK-constraint lagt til
+// i migreringen. Activity/Task kobles til «hvilken som helst hovedentitet»
+// (kap. 17) med samme entityType+entityId-mønster som AuditLog allerede
+// bruker, siden de skal kunne peke på stadig flere entiteter etter hvert som
+// systemet vokser (tilbud, ordre, prosjekt, ...).
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id                  String       @id @default(uuid())
+  type                CustomerType
+  name                String
+  orgNr               String?
+  email               String?
+  phone               String?
+  creditLimitCents    Int?
+  creditLimitCurrency String       @default("NOK")
+  paymentTermsDays    Int?
+  poweroffice_id      String?      @unique
+  deletedAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  createdById         String?
+
+  addresses      Address[]
+  contactPersons ContactPerson[]
+  consents       Consent[]
+  groups         CustomerGroup[] @relation("CustomerToGroup")
+
+  @@index([orgNr])
+  @@index([name])
+  @@map("customers")
+}
+
+model Supplier {
+  id                  String    @id @default(uuid())
+  name                String
+  country             String
+  email               String?
+  phone               String?
+  website             String?
+  currency            String    @default("EUR")
+  incoterms           String?
+  paymentTermsDays    Int?
+  creditLimitCents    Int?
+  creditLimitCurrency String    @default("EUR")
+  iban                String?
+  bic                 String?
+  poweroffice_id      String?   @unique
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  createdById         String?
+
+  addresses      Address[]
+  contactPersons ContactPerson[]
+
+  @@index([name])
+  @@map("suppliers")
+}
+
+model Address {
+  id         String      @id @default(uuid())
+  type       AddressType
+  street     String
+  postalCode String
+  city       String
+  region     String?
+  country    String      @default("NO")
+  customerId String?
+  supplierId String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([supplierId])
+  @@map("addresses")
+}
+
+model ContactPerson {
+  id          String   @id @default(uuid())
+  name        String
+  role        String?
+  email       String?
+  phone       String?
+  language    String   @default("nb")
+  customerId  String?
+  supplierId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  supplier Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  consents Consent[]
+
+  @@index([customerId])
+  @@index([supplierId])
+  @@map("contact_persons")
+}
+
+model CustomerGroup {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  customers Customer[] @relation("CustomerToGroup")
+
+  @@map("customer_groups")
+}
+
+// KU-11: samtykke til nyhetsbrev/markedsføring, med dato og kilde.
+model Consent {
+  id              String        @id @default(uuid())
+  channel         String
+  status          ConsentStatus
+  occurredAt      DateTime      @default(now())
+  source          String?
+  customerId      String?
+  contactPersonId String?
+  createdAt       DateTime      @default(now())
+  createdById     String?
+
+  customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  contactPerson ContactPerson? @relation(fields: [contactPersonId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("consents")
+}
+
+// KU-06/LE-09: tidslinje. E-post (EP-*) og statusendringer på tilbud/ordre
+// kobles inn automatisk fra M3/M5 – her registreres kun manuelle typer i M1.
+model Activity {
+  id          String       @id @default(uuid())
+  type        ActivityType
+  text        String
+  occurredAt  DateTime     @default(now())
+  entityType  String
+  entityId    String
+  createdAt   DateTime     @default(now())
+  createdById String?
+
+  @@index([entityType, entityId])
+  @@index([occurredAt])
+  @@map("activities")
+}
+
+// GE-07: oppgaver og påminnelser per bruker.
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  dueAt       DateTime?
+  status      TaskStatus @default(OPEN)
+  assigneeId  String
+  entityType  String?
+  entityId    String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdById String?
+
+  assignee User @relation(fields: [assigneeId], references: [id], onDelete: Cascade)
+
+  @@index([assigneeId, status])
+  @@index([entityType, entityId])
+  @@map("tasks")
+}
+
+enum CustomerType {
+  COMPANY
+  PRIVATE
+}
+
+enum AddressType {
+  VISIT
+  INVOICE
+  DELIVERY
+}
+
+enum ConsentStatus {
+  GIVEN
+  WITHDRAWN
+}
+
+enum ActivityType {
+  NOTE
+  CALL
+  MEETING
+  STATUS
+  EMAIL
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
 }

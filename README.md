@@ -4,7 +4,10 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 
 ## Status
 
-**M0 Fundament er bygget** (GE-01–06, GE-04, GE-06, IF-06, DR-08 delvis – se "Hva gjenstår" under). Se statustabellen i `CLAUDE.md` for øvrige milepæler.
+**M0 Fundament og M1 Kunder og leverandører er bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
+
+- M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
+- M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
 
 ## Oppstart (utvikling)
 
@@ -34,10 +37,27 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 - **Gjenstår til M9 (serverpakke):** DMG-pakking, kontrollpanel, launchd-oppstart i servermodus, full 30-dagers rotasjon til ekstern/kryptert disk, og migrering mellom lokal modus og Mac mini (DR-05, DR-10–17).
 - **Gjenstår ellers:** nøkler i macOS-nøkkelring i stedet for `.env` er planlagt for lokal modus/servermodus (DR-08) – i utvikling brukes kun `.env` per arbeidsregel 6.
 
-## Arkitektur i M0
+## Arkitektur
 
 - Next.js 14 (App Router), TypeScript strict, Tailwind CSS.
-- PostgreSQL 16 + Prisma (modeller: User, Role, Permission, Session, AuditLog).
+- PostgreSQL 16 + Prisma. M0: User, Role, Permission, Session, AuditLog. M1: Customer, Supplier,
+  Address, ContactPerson, CustomerGroup, Consent, Activity, Task.
 - Innlogging: passord (scrypt, ingen ekstern avhengighet) + obligatorisk TOTP to-faktor (håndrullet etter RFC 6238, ingen ekstern avhengighet), sesjon lagret i database.
 - Rettigheter sjekkes på serveren i hver side/server action/API-rute (`src/lib/rbac`), aldri kun i grensesnittet.
 - Alle endringer logges i `AuditLog` (`src/lib/audit`).
+- Penger lagres som heltall i øre/cent med valutakode (`src/lib/money`), aldri flyttall.
+- `Address`/`ContactPerson`/`Consent` peker på enten kunde ELLER leverandør (håndhevet med en
+  CHECK-constraint i migreringen). `Activity`/`Task` bruker samme `entityType`+`entityId`-mønster
+  som `AuditLog`, slik at flere entiteter (tilbud, ordre, prosjekt …) kan kobles på senere uten
+  skjemaendring.
+
+## M1: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene KU-01–06, KU-11, KU-12, LE-01–05, LE-09 og GE-07 (kap. 19), samt datamodellen for
+KU-08/KU-03 (selve PowerOffice-synken og saldovisningen kommer i M6) og et første steg av GE-05
+(fellessøk, foreløpig kunder/leverandører – utvides med dokumenter/e-post/tilbud/ordre/bilag i
+M2/M3/M5/M7).
+
+**Bevisst utsatt** (BØR/KAN eller avhenger av senere milepæler): KU-07 (Brønnøysund-oppslag – krever
+workeren, kap. 15/18, som ikke er bygget ennå), KU-09 (kobling kunde↔prosjekt), LE-06
+(e-postintegrasjon → M3), LE-07/08 (bilag/betaling → M7), LE-10–12.

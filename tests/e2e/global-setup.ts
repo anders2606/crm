@@ -31,6 +31,17 @@ export default async function globalSetup(): Promise<void> {
   const prisma = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
 
   try {
+    // M1-tabeller nullstilles også, slik at KU-12-testen ("tomt register")
+    // er pålitelig på tvers av kjøringer, ikke bare første gang.
+    await prisma.task.deleteMany();
+    await prisma.activity.deleteMany();
+    await prisma.consent.deleteMany();
+    await prisma.contactPerson.deleteMany();
+    await prisma.address.deleteMany();
+    await prisma.customer.deleteMany();
+    await prisma.supplier.deleteMany();
+    await prisma.customerGroup.deleteMany();
+
     await prisma.auditLog.deleteMany();
     await prisma.session.deleteMany();
     await prisma.userRole.deleteMany();
