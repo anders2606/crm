@@ -6,7 +6,7 @@ import { formatMoney } from '@/lib/money';
 import { AuthenticationRequiredError, hasPermission, PermissionDeniedError, PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 import { ORDER_STATUS_LABELS } from '@/modules/quotes/service';
 
-import { setOrderStatus } from './actions';
+import { setOrderStatus, transferOrder } from './actions';
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short' }).format(date);
@@ -78,9 +78,21 @@ export default async function OrderDetailPage({ params }: { params: { id: string
       </div>
 
       <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-        {order.transferredToPowerOffice
-          ? 'Overført til PowerOffice.'
-          : 'Ikke overført til PowerOffice ennå (TO-09 – kommer i M6).'}
+        {order.transferredToPowerOffice ? (
+          `Overført til PowerOffice (${order.poweroffice_id}).`
+        ) : (
+          <div className="flex items-center justify-between gap-4">
+            <span>Ikke overført til PowerOffice ennå (TO-09/IN-02).</span>
+            {canWrite && (
+              <form action={transferOrder}>
+                <input type="hidden" name="orderId" value={order.id} />
+                <button type="submit" className="rounded border border-amber-400 px-3 py-1.5 hover:bg-amber-100">
+                  Overfør til PowerOffice
+                </button>
+              </form>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">

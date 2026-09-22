@@ -300,7 +300,14 @@ export async function lookupAndLinkByOrgNr(entityType: 'Customer' | 'Supplier', 
   }
 }
 
-export async function runPowerOfficeSyncJob(data: PowerOfficeSyncJobData): Promise<void> {
+/**
+ * Dispatcher for jobber som ikke krever noen annen modul (unngår sirkulær
+ * import med order-transfer.ts, som selv bruker matchOrCreateCustomer
+ * herfra) – transfer-order håndteres direkte i src/worker/index.ts.
+ */
+export async function runPowerOfficeSyncJob(
+  data: Exclude<PowerOfficeSyncJobData, { kind: 'transfer-order' }>,
+): Promise<void> {
   switch (data.kind) {
     case 'match-customer':
       return matchOrCreateCustomer(data.customerId);

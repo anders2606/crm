@@ -7,6 +7,7 @@ import type { OrderStatus } from '@prisma/client';
 import { logAudit } from '@/lib/audit/log';
 import { prisma } from '@/lib/db';
 import { ENTITY_TYPES } from '@/lib/entity-types';
+import { enqueuePowerOfficeSync } from '@/lib/jobs';
 import { PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 
 const VALID_STATUSES: OrderStatus[] = ['CONFIRMED', 'IN_PRODUCTION', 'DELIVERED', 'CANCELLED'];
@@ -32,6 +33,17 @@ export async function setOrderStatus(formData: FormData): Promise<void> {
     before: { status: before.status },
     after: { status },
   });
+
+  revalidatePath(`/orders/${orderId}`);
+}
+
+// IN-02: legger ordren i overføringskøen. Selve PowerOffice-kallet skjer i
+// workeren (arbeidsregel 12).
+export async function transferOrder(formData: FormData): Promise<void> {
+  const session = await requirePermission(PERMISSIONS.ORDER_WRITE);
+  const orderId = String(formData.get('orderId') ?? '');
+
+  await enqueuePowerOfficeSync({ kind: 'transfer-order', orderId, userId: session.id });
 
   revalidatePath(`/orders/${orderId}`);
 }

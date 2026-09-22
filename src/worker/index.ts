@@ -21,6 +21,8 @@ import { POWEROFFICE_SYNC_QUEUE, QUOTE_SEND_QUEUE, type PowerOfficeSyncJobData, 
 import { decryptSecret } from '@/lib/secrets';
 import { syncAccountFolder } from '@/modules/email/sync';
 import { syncExchangeRates } from '@/modules/exchange-rates/service';
+import { syncAllCustomerBalances } from '@/modules/poweroffice/balances';
+import { transferOrderToPowerOffice } from '@/modules/poweroffice/order-transfer';
 import { runPowerOfficeSyncJob } from '@/modules/poweroffice/sync';
 import { runFollowUpCycle } from '@/modules/quotes/followup-worker';
 import { deliverQuote } from '@/modules/quotes/send';
@@ -32,6 +34,8 @@ const FX_QUEUE = 'exchange-rate-sync';
 // OP-02–06: sjekkes daglig – oppfølging er dagsbasert (antall dager etter
 // sending), ikke tidssensitiv nok til å trenge hyppigere kjøring.
 const FOLLOWUP_QUEUE = 'quote-followup-cycle';
+// IN-22: synk minst hver time.
+const POWEROFFICE_BALANCE_QUEUE = 'poweroffice-balance-sync';
 // Sikrer at NOK/EUR/USD (kap. 3: "NOK, EUR, USD m.fl.") alltid har kurser
 // tilgjengelig, selv før første leverandør er registrert med en annen valuta.
 const BASELINE_CURRENCIES = ['EUR', 'USD'];
@@ -154,6 +158,7 @@ async function main(): Promise<void> {
   await boss.createQueue(QUOTE_SEND_QUEUE);
   await boss.createQueue(FOLLOWUP_QUEUE);
   await boss.createQueue(POWEROFFICE_SYNC_QUEUE);
+  await boss.createQueue(POWEROFFICE_BALANCE_QUEUE);
 
   await boss.work(SYNC_QUEUE, async () => {
     await syncAllAccounts();
@@ -173,9 +178,22 @@ async function main(): Promise<void> {
       console.log(`[worker] Oppfølging: ${remindersSent} påminnelse(r) sendt, ${expiryWarnings} utløpsvarsel(er) opprettet`);
     }
   });
-  // IN-01/IN-20: eneste sted PowerOffice-kallene for kunde-/leverandørsynk skjer.
+  // IN-01/IN-02/IN-20: eneste sted PowerOffice-kallene for kunde-/
+  // leverandørsynk og ordreoverføring skjer.
   await boss.work<PowerOfficeSyncJobData>(POWEROFFICE_SYNC_QUEUE, async ([job]) => {
-    await runPowerOfficeSyncJob(job!.data);
+    const data = job!.data;
+    if (data.kind === 'transfer-order') {
+      await transferOrderToPowerOffice(data.orderId, data.userId);
+      return;
+    }
+    await runPowerOfficeSyncJob(data);
+  });
+  // IN-03/KU-03: eneste sted PowerOffice-kallet for reskontro skjer.
+  await boss.work(POWEROFFICE_BALANCE_QUEUE, async () => {
+    const synced = await syncAllCustomerBalances();
+    if (synced > 0) {
+      console.log(`[worker] PowerOffice-reskontro: ${synced} kunde(r) oppdatert`);
+    }
   });
 
   // Minuttoppløsning er nok til å holde M3s 2-minutters akseptansekriterium
@@ -185,14 +203,17 @@ async function main(): Promise<void> {
   await boss.schedule(FX_QUEUE, '0 6 * * *', null, { tz: 'Europe/Oslo' });
   // Oppfølging er dagsbasert – én kjøring om morgenen er nok.
   await boss.schedule(FOLLOWUP_QUEUE, '0 7 * * *', null, { tz: 'Europe/Oslo' });
+  // IN-22: synk minst hver time.
+  await boss.schedule(POWEROFFICE_BALANCE_QUEUE, '0 * * * *', null, { tz: 'Europe/Oslo' });
 
-  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06, tilbudsoppfølging daglig kl. 07.');
+  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06, tilbudsoppfølging daglig kl. 07, PowerOffice-reskontro hver time.');
 
   // DR-04: hent inn det som er gått glipp av umiddelbart ved oppstart,
   // ikke vent på første planlagte kjøring.
   await syncAllAccounts();
   await syncAllExchangeRates();
   await runFollowUpCycle();
+  await syncAllCustomerBalances();
   await startIdleWatchers();
 
   const shutdown = async () => {

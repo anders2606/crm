@@ -192,11 +192,31 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             />
           </label>
           <p className="text-xs text-slate-500">
-            Utestående saldo hentes fra PowerOffice (KU-03) – kommer med integrasjonen i M6.
             {customer.creditLimitCents !== null && (
-              <> Nåværende kredittgrense: {formatMoney(customer.creditLimitCents, customer.creditLimitCurrency)}.</>
+              <>Nåværende kredittgrense: {formatMoney(customer.creditLimitCents, customer.creditLimitCurrency)}. </>
+            )}
+            {customer.balanceSyncedAt ? (
+              <>
+                Utestående saldo (PowerOffice, {new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short', timeStyle: 'short' }).format(customer.balanceSyncedAt)}):{' '}
+                {formatMoney(customer.outstandingBalanceMinor ?? 0, customer.creditLimitCurrency)}
+                {(customer.overdueAmountMinor ?? 0) > 0 && (
+                  <> (herav {formatMoney(customer.overdueAmountMinor!, customer.creditLimitCurrency)} forfalt)</>
+                )}
+                .
+              </>
+            ) : (
+              <>Utestående saldo hentes fra PowerOffice (KU-03) – ikke synket ennå.</>
             )}
           </p>
+          {customer.creditLimitCents !== null &&
+            customer.outstandingBalanceMinor !== null &&
+            customer.outstandingBalanceMinor > customer.creditLimitCents && (
+              <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+                Kredittgrensen er overskredet: utestående saldo (
+                {formatMoney(customer.outstandingBalanceMinor, customer.creditLimitCurrency)}) er høyere enn
+                kredittgrensen ({formatMoney(customer.creditLimitCents, customer.creditLimitCurrency)}) (KU-03).
+              </p>
+            )}
           <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800">
             Lagre
           </button>

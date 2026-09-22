@@ -22,7 +22,9 @@ export type PowerOfficeSyncJobData =
   | { kind: 'match-customer'; customerId: string }
   | { kind: 'match-supplier'; supplierId: string }
   | { kind: 'import-all' }
-  | { kind: 'lookup-org-nr'; entityType: 'Customer' | 'Supplier'; orgNr: string };
+  | { kind: 'lookup-org-nr'; entityType: 'Customer' | 'Supplier'; orgNr: string }
+  // IN-02: overfører et ordre-/fakturagrunnlag til PowerOffice.
+  | { kind: 'transfer-order'; orderId: string; userId: string | null };
 
 let producerPromise: Promise<PgBoss> | null = null;
 
