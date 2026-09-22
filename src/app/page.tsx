@@ -76,6 +76,11 @@ export default async function DashboardPage() {
             E-postkontoer
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.TEMPLATE_MANAGE) && (
+          <Link href="/admin/templates" className="underline">
+            Maler
+          </Link>
+        )}
         {hasPermission(session, PERMISSIONS.ADMIN_ROLES_MANAGE) && (
           <Link href="/admin/roles" className="underline">
             Roller og rettigheter
