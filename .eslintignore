@@ -1,0 +1,2 @@
+# Generert fra docs/poweroffice-apiv2-demo.json (npm run poweroffice:types) – ikke håndskrevet kode.
+src/integrations/poweroffice/schema.d.ts

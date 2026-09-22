@@ -801,6 +801,13 @@ model PowerOfficeSettings {
   encryptedApplicationKey  String?
   encryptedClientKey       String?
   encryptedSubscriptionKey String?
+  // Overstyrer de innebygde standard-URL-ene for miljøet (tom = bruk
+  // standard for valgt miljø). Gjør at IN-23 sitt krav om "bytte uten
+  // kodeendring" holder selv om PowerOffice endrer URL-er, eller hvis
+  // produksjons-URL-en (ikke dokumentert i demo-spesifikasjonen) avviker
+  // fra det innebygde beste anslaget.
+  apiBaseUrlOverride       String?
+  tokenUrlOverride         String?
   // IN-23: første gang PRODUCTION velges er synk kun lesende inntil
   // administrator eksplisitt slår på skriving.
   writeEnabled             Boolean                @default(false)

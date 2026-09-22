@@ -20,7 +20,8 @@
     "db:backup": "tsx scripts/backup.ts",
     "db:backup:silent": "tsx scripts/backup.ts || true",
     "prisma:generate": "prisma generate",
-    "worker": "tsx src/worker/index.ts"
+    "worker": "tsx src/worker/index.ts",
+    "poweroffice:types": "openapi-typescript docs/poweroffice-apiv2-demo.json -o src/integrations/poweroffice/schema.d.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
@@ -43,6 +44,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.35",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.47",
     "prisma": "^5.20.0",
     "tailwindcss": "^3.4.13",
