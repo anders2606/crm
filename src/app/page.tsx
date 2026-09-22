@@ -91,6 +91,9 @@ export default async function DashboardPage() {
             Maler
           </Link>
         )}
+        <Link href="/governing-documents" className="underline">
+          Planer og styrende dokumenter
+        </Link>
         {hasPermission(session, PERMISSIONS.ADMIN_ROLES_MANAGE) && (
           <Link href="/admin/roles" className="underline">
             Roller og rettigheter
