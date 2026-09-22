@@ -5,7 +5,7 @@ Eget CRM-system for Pietra Unica (marmor.no), en norsk marmorforhandler. Systeme
 ## Viktigste filer
 
 - `docs/kravspesifikasjon.md` – fasit for alle krav (krav-ID-er, stack, datamodell, byggeplan).
-- `docs/poweroffice-apiv2-demo.json` – OpenAPI-spesifikasjon for PowerOffice Go API v2 (demo). Generer typet klient fra denne, ikke gjett endepunkter. **Mangler i repoet foreløpig – må legges til av eier før M6 kan startes.**
+- `docs/poweroffice-apiv2-demo.json` – OpenAPI-spesifikasjon for PowerOffice Go API v2 (demo). Generer typet klient fra denne, ikke gjett endepunkter.
 
 ## Arbeidsregler
 
