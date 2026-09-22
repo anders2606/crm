@@ -23,6 +23,7 @@ import type {
   PowerOfficeCustomerInput,
   PowerOfficeIncomingInvoice,
   PowerOfficeOpenItem,
+  PowerOfficeOutgoingInvoice,
   PowerOfficeSalesOrderInput,
   PowerOfficeSupplierInput,
 } from './types';
@@ -258,6 +259,14 @@ interface RawIncomingInvoice {
   DueDate: string | null;
 }
 
+interface RawOutgoingInvoice {
+  Id: string;
+  InvoiceNo: number | null;
+  TotalAmount: number;
+  Balance: number;
+  DueDate: string | null;
+}
+
 // Grenser hvor langt tilbake bilagsstatus hentes (samme mønster som
 // valutakurs-backfill, src/worker/index.ts) – unngår å hente hele
 // leverandørens fakturahistorikk hver gang.
@@ -407,6 +416,26 @@ export function createRealPowerOfficeClient(credentials: PowerOfficeCredentials)
         balanceMinor: decimalToMinor(invoice.Balance),
         dueDate: invoice.DueDate,
       }));
+    },
+
+    async findOutgoingInvoiceByOrderReference(orderNumber) {
+      const invoices = (await requestJson(credentials, '/OutgoingInvoices', {
+        method: 'GET',
+        query: { externalImportReferences: orderNumber },
+      })) as RawOutgoingInvoice[];
+
+      if (invoices.length === 0) {
+        return null;
+      }
+      const invoice = invoices[0]!;
+      const result: PowerOfficeOutgoingInvoice = {
+        powerOfficeId: invoice.Id,
+        invoiceNo: invoice.InvoiceNo !== null ? String(invoice.InvoiceNo) : null,
+        totalAmountMinor: decimalToMinor(invoice.TotalAmount),
+        balanceMinor: decimalToMinor(invoice.Balance),
+        dueDate: invoice.DueDate,
+      };
+      return result;
     },
   };
 }

@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { AuthenticationRequiredError, hasPermission, PermissionDeniedError, PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
+import { INVOICE_PAYMENT_STATUS_LABELS } from '@/modules/poweroffice/payment-status';
 import { ORDER_STATUS_LABELS } from '@/modules/quotes/service';
 
 import { setOrderStatus, transferOrder } from './actions';
@@ -94,6 +95,35 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           </div>
         )}
       </section>
+
+      {order.transferredToPowerOffice && (
+        <section className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-2 font-medium">Betalingsstatus (IN-10, IN-12)</h2>
+          {order.paymentStatus ? (
+            <p className="text-sm text-slate-700">
+              Faktura {order.powerOfficeInvoiceNo ?? '–'}:{' '}
+              <span
+                className={
+                  order.paymentStatus === 'PAID'
+                    ? 'font-medium text-emerald-700'
+                    : order.paymentStatus === 'PARTIALLY_PAID'
+                      ? 'font-medium text-amber-700'
+                      : 'font-medium text-slate-700'
+                }
+              >
+                {INVOICE_PAYMENT_STATUS_LABELS[order.paymentStatus]}
+              </span>{' '}
+              <span className="text-xs text-slate-500">
+                (fra PowerOffice, {order.paymentSyncedAt ? formatDate(order.paymentSyncedAt) : '–'})
+              </span>
+            </p>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Ikke fakturert i PowerOffice ennå – oppdateres automatisk minst hver time (IN-22).
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 font-medium">Linjer</h2>

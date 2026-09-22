@@ -13,6 +13,7 @@ import {
   isPreviewableInBrowser,
   listDocumentGroupsForEntity,
 } from '@/modules/documents/service';
+import { INVOICE_PAYMENT_STATUS_LABELS } from '@/modules/poweroffice/payment-status';
 import { QUOTE_STATUS_LABELS } from '@/modules/quotes/service';
 
 import {
@@ -82,7 +83,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
     notFound();
   }
 
-  const [allGroups, activities, openTasks, users, documentGroups, quotes] = await Promise.all([
+  const [allGroups, activities, openTasks, users, documentGroups, quotes, orders] = await Promise.all([
     prisma.customerGroup.findMany({ orderBy: { name: 'asc' } }),
     listActivities(ENTITY_TYPES.CUSTOMER, customer.id),
     prisma.task.findMany({
@@ -93,6 +94,11 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
     listDocumentGroupsForEntity(ENTITY_TYPES.CUSTOMER, customer.id),
     prisma.quote.findMany({
       where: { customerId: customer.id, isCurrent: true },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.order.findMany({
+      where: { quote: { customerId: customer.id } },
+      include: { quote: true },
       orderBy: { createdAt: 'desc' },
     }),
   ]);
@@ -306,6 +312,28 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           </ul>
         )}
       </section>
+
+      {orders.length > 0 && (
+        <section className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-4 font-medium">Ordre og betalingsstatus (IN-12)</h2>
+          <ul className="space-y-1 text-sm">
+            {orders.map((order) => (
+              <li key={order.id} className="flex items-center justify-between rounded border border-slate-100 px-3 py-2">
+                <Link href={`/orders/${order.id}`} className="underline">
+                  {order.number}
+                </Link>
+                <span className="text-slate-600">
+                  {order.paymentStatus
+                    ? INVOICE_PAYMENT_STATUS_LABELS[order.paymentStatus]
+                    : order.transferredToPowerOffice
+                      ? 'Ikke fakturert ennå'
+                      : 'Ikke overført til PowerOffice ennå'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 font-medium">Oppfølging (OP-05)</h2>

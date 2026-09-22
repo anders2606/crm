@@ -83,6 +83,18 @@ export interface PowerOfficeIncomingInvoice {
   dueDate: string | null;
 }
 
+// IN-10/12: den utgående fakturaen PowerOffice opprettet fra en salgsordre,
+// funnet igjen på ExternalImportReference (ordrenummeret CRM satte ved
+// overføring, se createSalesOrder over) – ikke gjettet, samme felt begge
+// veier.
+export interface PowerOfficeOutgoingInvoice {
+  powerOfficeId: string;
+  invoiceNo: string | null;
+  totalAmountMinor: number;
+  balanceMinor: number;
+  dueDate: string | null;
+}
+
 export interface PowerOfficeClient {
   /** IN-01/KU-08: finner eksisterende post på org.nr først, så e-post. */
   findCustomerByOrgNrOrEmail(orgNr: string | null, email: string | null): Promise<PowerOfficeContactMatch | null>;
@@ -103,4 +115,7 @@ export interface PowerOfficeClient {
 
   /** BI-02/03: inngående fakturaer registrert på én leverandør. */
   listIncomingInvoicesForSupplier(powerOfficeId: string): Promise<PowerOfficeIncomingInvoice[]>;
+
+  /** IN-10/12: finner den utgående fakturaen som ble opprettet fra en gitt ordre. */
+  findOutgoingInvoiceByOrderReference(orderNumber: string): Promise<PowerOfficeOutgoingInvoice | null>;
 }

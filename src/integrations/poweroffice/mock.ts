@@ -9,6 +9,7 @@ import type {
   PowerOfficeCustomerBalance,
   PowerOfficeCustomerInput,
   PowerOfficeIncomingInvoice,
+  PowerOfficeOutgoingInvoice,
   PowerOfficeSalesOrderInput,
   PowerOfficeSupplierInput,
 } from './types';
@@ -21,6 +22,7 @@ const suppliers = new Map<string, MockSupplierRecord>();
 const balances = new Map<string, PowerOfficeCustomerBalance>();
 const salesOrders = new Map<string, PowerOfficeSalesOrderInput>();
 const incomingInvoicesBySupplier = new Map<string, PowerOfficeIncomingInvoice[]>();
+const outgoingInvoicesByOrderReference = new Map<string, PowerOfficeOutgoingInvoice>();
 
 export function resetMockPowerOffice(): void {
   customers.clear();
@@ -28,6 +30,7 @@ export function resetMockPowerOffice(): void {
   balances.clear();
   salesOrders.clear();
   incomingInvoicesBySupplier.clear();
+  outgoingInvoicesByOrderReference.clear();
 }
 
 /** Setter opp en eksisterende PowerOffice-kunde for match-testing (IN-01). */
@@ -49,6 +52,10 @@ export function getMockSalesOrders(): Map<string, PowerOfficeSalesOrderInput> {
 
 export function seedMockIncomingInvoices(supplierPowerOfficeId: string, invoices: PowerOfficeIncomingInvoice[]): void {
   incomingInvoicesBySupplier.set(supplierPowerOfficeId, invoices);
+}
+
+export function seedMockOutgoingInvoice(orderNumber: string, invoice: PowerOfficeOutgoingInvoice): void {
+  outgoingInvoicesByOrderReference.set(orderNumber, invoice);
 }
 
 function findByOrgNrOrEmail<T extends PowerOfficeContactMatch>(
@@ -128,5 +135,9 @@ export const mockPowerOfficeClient: PowerOfficeClient = {
 
   async listIncomingInvoicesForSupplier(powerOfficeId) {
     return incomingInvoicesBySupplier.get(powerOfficeId) ?? [];
+  },
+
+  async findOutgoingInvoiceByOrderReference(orderNumber) {
+    return outgoingInvoicesByOrderReference.get(orderNumber) ?? null;
   },
 };

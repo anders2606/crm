@@ -30,6 +30,7 @@ import { syncAccountFolder } from '@/modules/email/sync';
 import { syncExchangeRates } from '@/modules/exchange-rates/service';
 import { syncAllCustomerBalances } from '@/modules/poweroffice/balances';
 import { forwardSupplierInvoiceToPowerOffice } from '@/modules/poweroffice/invoice-forward';
+import { syncOrderPaymentStatuses } from '@/modules/poweroffice/order-payments';
 import { transferOrderToPowerOffice } from '@/modules/poweroffice/order-transfer';
 import { runPowerOfficeSyncJob } from '@/modules/poweroffice/sync';
 import { syncSupplierInvoiceStatuses } from '@/modules/poweroffice/supplier-invoices';
@@ -47,6 +48,8 @@ const FOLLOWUP_QUEUE = 'quote-followup-cycle';
 const POWEROFFICE_BALANCE_QUEUE = 'poweroffice-balance-sync';
 // BI-02/03: synk minst hver time (IN-22).
 const POWEROFFICE_SUPPLIER_INVOICE_QUEUE = 'poweroffice-supplier-invoice-sync';
+// IN-10/11/12: synk minst hver time (IN-22).
+const POWEROFFICE_ORDER_PAYMENT_QUEUE = 'poweroffice-order-payment-sync';
 // Sikrer at NOK/EUR/USD (kap. 3: "NOK, EUR, USD m.fl.") alltid har kurser
 // tilgjengelig, selv før første leverandør er registrert med en annen valuta.
 const BASELINE_CURRENCIES = ['EUR', 'USD'];
@@ -172,6 +175,7 @@ async function main(): Promise<void> {
   await boss.createQueue(POWEROFFICE_BALANCE_QUEUE);
   await boss.createQueue(POWEROFFICE_INVOICE_QUEUE);
   await boss.createQueue(POWEROFFICE_SUPPLIER_INVOICE_QUEUE);
+  await boss.createQueue(POWEROFFICE_ORDER_PAYMENT_QUEUE);
 
   await boss.work(SYNC_QUEUE, async () => {
     await syncAllAccounts();
@@ -220,6 +224,13 @@ async function main(): Promise<void> {
       console.log(`[worker] PowerOffice-leverandørbilag: ${synced} leverandør(er) oppdatert`);
     }
   });
+  // IN-10/11/12: eneste sted PowerOffice-kallet for ordrenes betalingsstatus skjer.
+  await boss.work(POWEROFFICE_ORDER_PAYMENT_QUEUE, async () => {
+    const synced = await syncOrderPaymentStatuses();
+    if (synced > 0) {
+      console.log(`[worker] PowerOffice-betalingsstatus: ${synced} ordre(r) oppdatert`);
+    }
+  });
 
   // Minuttoppløsning er nok til å holde M3s 2-minutters akseptansekriterium
   // med god margin, og krever ingen ekstra avhengighet utover pg-boss.
@@ -231,8 +242,9 @@ async function main(): Promise<void> {
   // IN-22: synk minst hver time.
   await boss.schedule(POWEROFFICE_BALANCE_QUEUE, '0 * * * *', null, { tz: 'Europe/Oslo' });
   await boss.schedule(POWEROFFICE_SUPPLIER_INVOICE_QUEUE, '0 * * * *', null, { tz: 'Europe/Oslo' });
+  await boss.schedule(POWEROFFICE_ORDER_PAYMENT_QUEUE, '0 * * * *', null, { tz: 'Europe/Oslo' });
 
-  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06, tilbudsoppfølging daglig kl. 07, PowerOffice-reskontro/leverandørbilag hver time.');
+  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06, tilbudsoppfølging daglig kl. 07, PowerOffice-reskontro/leverandørbilag/betalingsstatus hver time.');
 
   // DR-04: hent inn det som er gått glipp av umiddelbart ved oppstart,
   // ikke vent på første planlagte kjøring.
@@ -241,6 +253,7 @@ async function main(): Promise<void> {
   await runFollowUpCycle();
   await syncAllCustomerBalances();
   await syncSupplierInvoiceStatuses();
+  await syncOrderPaymentStatuses();
   await startIdleWatchers();
 
   const shutdown = async () => {

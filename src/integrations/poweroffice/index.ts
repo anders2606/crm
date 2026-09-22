@@ -10,6 +10,7 @@ export {
   mockPowerOfficeClient,
   resetMockPowerOffice,
   seedMockIncomingInvoices,
+  seedMockOutgoingInvoice,
   seedMockPowerOfficeBalance,
   seedMockPowerOfficeCustomer,
   seedMockPowerOfficeSupplier,
