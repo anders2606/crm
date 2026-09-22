@@ -16,6 +16,7 @@ import { OPEN_QUOTE_STATUSES, QUOTE_STATUS_LABELS } from '@/modules/quotes/servi
 
 import {
   addQuoteLine,
+  convertToOrder,
   createQuoteRevision,
   removeQuoteLine,
   requestSendQuote,
@@ -39,6 +40,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_status: 'Ugyldig status.',
   missing_lost_reason: 'Årsak må fylles ut når tilbudet avslås.',
   not_current: 'Kun gjeldende revisjon kan få en ny revisjon.',
+  cannot_convert: 'Tilbudet må ha status «akseptert» og ikke allerede være konvertert.',
 };
 
 export default async function QuoteDetailPage({
@@ -337,6 +339,21 @@ export default async function QuoteDetailPage({
               </button>
             </form>
           </div>
+        </section>
+      )}
+
+      {hasPermission(session, PERMISSIONS.ORDER_WRITE) && quote.status === 'ACCEPTED' && !order && (
+        <section className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-2 font-medium">Konverter til ordre (TO-08)</h2>
+          <p className="mb-4 text-sm text-slate-600">
+            Oppretter en ordre fra dette tilbudet og genererer en ordrebekreftelse fra mal.
+          </p>
+          <form action={convertToOrder}>
+            <input type="hidden" name="quoteId" value={quote.id} />
+            <button type="submit" className="rounded bg-emerald-700 px-4 py-2 text-sm text-white hover:bg-emerald-800">
+              Konverter til ordre
+            </button>
+          </form>
         </section>
       )}
 

@@ -12,6 +12,7 @@ import { enqueueQuoteSend } from '@/lib/jobs';
 import { parseMoneyToCents } from '@/lib/money';
 import { PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 import { getAccessibleEmailAccounts } from '@/modules/email/access';
+import { convertQuoteToOrder, QuoteNotConvertibleError } from '@/modules/orders/convert';
 import { formatQuoteNumber } from '@/modules/quotes/numbering';
 import { parseQuantityToMilli } from '@/modules/quotes/pricing';
 import { prepareQuoteForSending, recalculateQuoteTotals } from '@/modules/quotes/send';
@@ -266,4 +267,22 @@ export async function createQuoteRevision(formData: FormData): Promise<void> {
 
   revalidatePath(`/quotes/${quoteId}`);
   redirect(`/quotes/${newId}`);
+}
+
+// TO-08: akseptert tilbud konverteres til ordre med ett klikk.
+export async function convertToOrder(formData: FormData): Promise<void> {
+  const session = await requirePermission(PERMISSIONS.ORDER_WRITE);
+  const quoteId = String(formData.get('quoteId') ?? '');
+
+  let order;
+  try {
+    order = await convertQuoteToOrder(quoteId, session.id);
+  } catch (error) {
+    if (error instanceof QuoteNotConvertibleError) {
+      redirect(`/quotes/${quoteId}?error=cannot_convert`);
+    }
+    throw error;
+  }
+
+  redirect(`/orders/${order.id}`);
 }

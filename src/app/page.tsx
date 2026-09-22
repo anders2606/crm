@@ -73,6 +73,11 @@ export default async function DashboardPage() {
             Tilbud
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.ORDER_READ) && (
+          <Link href="/orders" className="underline">
+            Ordre
+          </Link>
+        )}
         <Link href="/email/unassigned" className="underline">
           Tilordningskø (e-post)
         </Link>
