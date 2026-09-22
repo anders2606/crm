@@ -6,12 +6,15 @@ import { TEST_DATABASE_URL, TEST_ENCRYPTION_KEY, TEST_STORAGE_DIR } from './test
 
 const PORT = 3100;
 
-// M3: enkelte tester kaller applikasjonskode (f.eks. syncAccountFolder)
-// direkte fra selve testprosessen, ikke bare via nettleseren mot webServer.
-// Da må DENNE prosessen også peke på testdatabasen og bruke samme
-// krypteringsnøkkel, satt her – før noe testfil rekker å importere '@/lib/db'.
+// M3/M6: enkelte tester kaller applikasjonskode (f.eks. syncAccountFolder,
+// forwardSupplierInvoiceToPowerOffice) direkte fra selve testprosessen, ikke
+// bare via nettleseren mot webServer. Da må DENNE prosessen også peke på
+// testdatabasen, bruke samme krypteringsnøkkel og samme fillager som
+// webServer, satt her – før noe testfil rekker å importere '@/lib/db' eller
+// '@/lib/storage'.
 process.env.DATABASE_URL = TEST_DATABASE_URL;
 process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+process.env.STORAGE_DIR = TEST_STORAGE_DIR;
 
 // Denne sandkasse-utviklingsmiljøet har en forhåndsinstallert Chromium på en
 // fast sti i stedet for Playwrights vanlige nedlastingsbane. Faller tilbake

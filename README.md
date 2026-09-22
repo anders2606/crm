@@ -4,8 +4,9 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 
 ## Status
 
-**M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter, M3 E-post, M4 Materialbibliotek og
-M5 Tilbud og ordre er bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
+**M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter, M3 E-post, M4 Materialbibliotek,
+M5 Tilbud og ordre og M6 PowerOffice er bygget.** Se statustabellen i `CLAUDE.md` for øvrige
+milepæler.
 
 - M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
 - M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
@@ -19,6 +20,9 @@ M5 Tilbud og ordre er bygget.** Se statustabellen i `CLAUDE.md` for øvrige mile
   maler/tekstblokker med versjonering og vilkår som fryses ved sending, PDF-generering og sending
   fra systemet, statusworkflow og revisjoner, ett-klikks konvertering til ordre med
   ordrebekreftelse, automatiske oppfølgingspåminnelser og pipeline-oversikt.
+- M6: toveis synk av kunder/leverandører mot PowerOffice Go (match på org.nr./e-post, aldri
+  duplikat), overføring av ordre til fakturering, reskontro med kredittvarsel på kundekortet, og
+  manuell opplasting av leverandørfakturaer som videresendes til PowerOffice sitt fakturamottak.
 
 ## Oppstart (utvikling)
 
@@ -34,7 +38,7 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 5. Seed grunndata (rettigheter, roller «Administrator»/«Selger», én admin-bruker): `npm run db:seed`.
 6. Start appen: `npm run dev` og åpne http://localhost:3000.
 7. Logg inn med e-posten/passordet skriptet skrev ut. Ved første innlogging vises en 2FA-nøkkel du legger inn i en autentiseringsapp (Apple Kodegenerator, Google Authenticator e.l.) – dette er obligatorisk (GE-04).
-8. For e-post (M3), valutakurser (M4) og sending/oppfølging av tilbud (M5): start workeren i et eget terminalvindu med `npm run worker`. Uten den synkroniseres ikke e-post/valutakurser, og «Send tilbud» legger seg i kø uten å bli sendt før workeren kjører.
+8. For e-post (M3), valutakurser (M4), sending/oppfølging av tilbud (M5) og PowerOffice-synk/reskontro/ordreoverføring/fakturavideresending (M6): start workeren i et eget terminalvindu med `npm run worker`. Uten den synkroniseres ikke e-post/valutakurser/PowerOffice, og «Send tilbud», «Overfør til PowerOffice» og leverandørfaktura-videresending legger seg i kø uten å bli utført før workeren kjører.
 
 ## Tester
 
@@ -56,7 +60,8 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 - PostgreSQL 16 + Prisma. M0: User, Role, Permission, Session, AuditLog. M1: Customer, Supplier,
   Address, ContactPerson, CustomerGroup, Consent, Activity, Task. M2: Document. M3: EmailAccount,
   EmailMessage. M4: Material, MaterialSupplier, PriceEntry, ExchangeRate. M5: Template, TextBlock,
-  Quote, QuoteLine, Order, FollowUpRule.
+  Quote, QuoteLine, Order, FollowUpRule. M6: PowerOfficeSettings, SyncLog (+ reskontro-cachefelter på
+  Customer).
 - Innlogging: passord (scrypt, ingen ekstern avhengighet) + obligatorisk TOTP to-faktor (håndrullet etter RFC 6238, ingen ekstern avhengighet), sesjon lagret i database.
 - Rettigheter sjekkes på serveren i hver side/server action/API-rute (`src/lib/rbac`), aldri kun i grensesnittet.
 - Alle endringer logges i `AuditLog` (`src/lib/audit`).
@@ -213,3 +218,66 @@ varsel) er verifisert direkte mot mock-integrasjonen, i tillegg til e2e-testene 
 og forskudd), TO-13 (auto-bestilling til leverandør), TO-14 (leverandørtilbud-merking i
 tilordningskøen), OP-09 (varsel ved kundesvar), OP-10 (automatisk e-post etter levering), SD-05
 (godkjenning av nye malversjoner før bruk), SD-06 (påminnelse om årlig dokumentgjennomgang).
+
+## M6: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene IN-01–04, IN-20–23, KU-03 og KU-08 (kap. 19).
+
+**Integrasjonsmodul** (`src/integrations/poweroffice`): typer generert fra den ekte PowerOffice Go
+API v2-spesifikasjonen (demo), `docs/poweroffice-apiv2-demo.json` (`npm run poweroffice:types`), bak
+samme mock/ekte-mønster som e-post og valutakurser. OAuth2 client credentials (Basic-autentisering +
+`Ocp-Apim-Subscription-Key`), token cachet i 20 minutter og fornyet automatisk. Beløp regnes om
+mellom øre (CRM, arbeidsregel 10) og PowerOffice sine desimalkroner. Kreditgrense og bankinfo
+(IBAN/BIC) er bevisst IKKE synket til PowerOffice ennå – se «Bevisst utsatt» under.
+
+**Admin-UI** (`/admin/poweroffice`, IN-21/IN-23): miljøvalg (demo/produksjon), krypterte nøkler
+(samme kryptering som e-postpassord), avanserte URL-overstyringer for tilfellet PowerOffice sine
+URL-er avviker fra det innebygde (siden produksjons-URL-en ikke er dokumentert i
+demo-spesifikasjonen), og en synkroniseringslogg. Skriving til PowerOffice er alltid avslått ved
+første bytte til produksjonsmiljø – administrator må eksplisitt slå den på og lagre på nytt, slik at
+et feiltrykk ikke sender ekte data.
+
+**Kunde-/leverandørsynk** (IN-01/KU-08): når en kunde eller leverandør registreres i CRM, sjekkes
+PowerOffice for en eksisterende post på org.nr. (leverandør: e-post, siden LE-modellen støtter
+utenlandske leverandører uten norsk org.nr., kap. 9) – finnes en, kobles postene sammen; finnes
+ingen og skriving er aktivert, opprettes en ny post i PowerOffice. CRM starter tomt: ingenting
+hentes inn automatisk, kun når administrator eksplisitt velger «Hent alle» eller slår opp ett
+bestemt organisasjonsnummer.
+
+**Ordre til faktura** (IN-02, `/orders/[id]`): en bekreftet ordre overføres med ett klikk som en
+salgsordre i PowerOffice (kobler/oppretter kunden automatisk om nødvendig), og er idempotent –
+samme ordre overføres aldri på nytt. MVA-beregningen som følger fakturagrunnlaget er CRM sitt ansvar
+(sum/rabatt/MVA regnes ut og lagres på tilbudet i M5); PowerOffice sine salgsordrelinjer har ikke
+noe eget MVA-felt (kap. 18) – MVA beregnes der av PowerOffice selv ut fra klientens egen
+standardkonto/MVA-kode.
+
+**Reskontro og kredittvarsel** (IN-03/KU-03): en ny timebasert workerjobb henter utestående saldo og
+forfalte beløp per kunde og cacher dem på kundeposten (IN-22: minst hver time). Kundekortet viser
+cachet saldo med tidsstempel, og varsler tydelig når saldoen overstiger kredittgrensen som er satt i
+CRM.
+
+**Leverandørfaktura-opplasting** (IN-04, `/suppliers/[id]`): en PDF-leverandørfaktura lastes opp
+manuelt fra leverandørkortet og arkiveres som dokument (gjenbruker M2). Opprinnelig plan var å
+opprette et kladdebilag via PowerOffice sitt `/JournalEntryVouchers/SupplierInvoices`-endepunkt, men
+`SupplierVoucherLinePostDto` krever klientspesifikke kontoplan-id-er (debet-/kreditkonto) som ikke
+er kjent uten tilgang til en ekte, konfigurert PowerOffice-klient. I stedet brukes PowerOffice sin
+egen dokumenterte reserveløsning (kap. 18): fakturaen videresendes som e-post til fakturamottakets
+adresse, som administrator setter opp under `/admin/poweroffice` (adressen er spesifikk for hver
+PowerOffice-klient og finnes ikke i OpenAPI-spesifikasjonen).
+
+**Viktig – PowerOffice sitt utviklerdokumentasjon (`developer.poweroffice.net`) og produksjons-URL
+er ikke verifisert direkte i denne økten** (samme nettverksbegrensning som M3/M4 – utviklerøkten
+tillater kun utgående HTTPS til et fast allowlist). Autentiseringsflyten (token-URL, headere,
+grant-type) er i stedet korroborert mot offentlig dokumentert oppførsel og to uavhengige
+tredjeparts-klientbibliotekers kildekode (inspisert via `npm pack`), ikke gjettet – men selve
+produksjons-base-URL-en er markert som beste anslag i koden (`src/integrations/poweroffice/real.ts`)
+og kan overstyres uten kodeendring under «Avanserte innstillinger» i admin-UI-et (IN-23). **Test
+selv:** sett `POWEROFFICE_INTEGRATION_MODE=real` i workerens miljø, fyll inn ekte demo-nøkler under
+`/admin/poweroffice`, og se i synkroniseringsloggen om kall mot PowerOffice sitt demo-miljø faktisk
+fungerer. Si ifra om noe ikke stemmer.
+
+**Bevisst utsatt** (BØR eller avhenger av senere milepæler): IN-05/IN-06 (varer/prosjekter og
+omsetningsrapporter fra PowerOffice), LE-04 (bankinfo/IBAN/BIC-synk – krever PowerOffice sin egen
+`ContactBankAccounts`-ressurs, eget sett med endepunkter), automatisk opplasting av
+leverandørfaktura fra e-post og dedup på filinnhold samt betalingsstatus fra PowerOffice på
+leverandørkortet (BI-01–05 → M7).
