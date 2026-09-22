@@ -21,12 +21,16 @@ import { QUOTE_SEND_QUEUE, type QuoteSendJobData } from '@/lib/jobs';
 import { decryptSecret } from '@/lib/secrets';
 import { syncAccountFolder } from '@/modules/email/sync';
 import { syncExchangeRates } from '@/modules/exchange-rates/service';
+import { runFollowUpCycle } from '@/modules/quotes/followup-worker';
 import { deliverQuote } from '@/modules/quotes/send';
 
 const SYNC_QUEUE = 'email-sync-all-accounts';
 const FOLDERS = ['INBOX', 'Sent'];
 
 const FX_QUEUE = 'exchange-rate-sync';
+// OP-02–06: sjekkes daglig – oppfølging er dagsbasert (antall dager etter
+// sending), ikke tidssensitiv nok til å trenge hyppigere kjøring.
+const FOLLOWUP_QUEUE = 'quote-followup-cycle';
 // Sikrer at NOK/EUR/USD (kap. 3: "NOK, EUR, USD m.fl.") alltid har kurser
 // tilgjengelig, selv før første leverandør er registrert med en annen valuta.
 const BASELINE_CURRENCIES = ['EUR', 'USD'];
@@ -147,6 +151,7 @@ async function main(): Promise<void> {
   await boss.createQueue(SYNC_QUEUE); // idempotent – trygt å kalle ved hver oppstart
   await boss.createQueue(FX_QUEUE);
   await boss.createQueue(QUOTE_SEND_QUEUE);
+  await boss.createQueue(FOLLOWUP_QUEUE);
 
   await boss.work(SYNC_QUEUE, async () => {
     await syncAllAccounts();
@@ -159,19 +164,29 @@ async function main(): Promise<void> {
   await boss.work<QuoteSendJobData>(QUOTE_SEND_QUEUE, async ([job]) => {
     await deliverQuote(job!.data);
   });
+  // OP-03/OP-06: eneste sted SMTP-kallet for automatiske påminnelser skjer.
+  await boss.work(FOLLOWUP_QUEUE, async () => {
+    const { remindersSent, expiryWarnings } = await runFollowUpCycle();
+    if (remindersSent > 0 || expiryWarnings > 0) {
+      console.log(`[worker] Oppfølging: ${remindersSent} påminnelse(r) sendt, ${expiryWarnings} utløpsvarsel(er) opprettet`);
+    }
+  });
 
   // Minuttoppløsning er nok til å holde M3s 2-minutters akseptansekriterium
   // med god margin, og krever ingen ekstra avhengighet utover pg-boss.
   await boss.schedule(SYNC_QUEUE, '* * * * *', null, { tz: 'Europe/Oslo' });
   // Valutakurser endres høyst én gang om dagen (kap. 18) – synk hver morgen.
   await boss.schedule(FX_QUEUE, '0 6 * * *', null, { tz: 'Europe/Oslo' });
+  // Oppfølging er dagsbasert – én kjøring om morgenen er nok.
+  await boss.schedule(FOLLOWUP_QUEUE, '0 7 * * *', null, { tz: 'Europe/Oslo' });
 
-  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06.');
+  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06, tilbudsoppfølging daglig kl. 07.');
 
   // DR-04: hent inn det som er gått glipp av umiddelbart ved oppstart,
   // ikke vent på første planlagte kjøring.
   await syncAllAccounts();
   await syncAllExchangeRates();
+  await runFollowUpCycle();
   await startIdleWatchers();
 
   const shutdown = async () => {

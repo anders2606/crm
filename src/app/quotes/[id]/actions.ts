@@ -286,3 +286,47 @@ export async function convertToOrder(formData: FormData): Promise<void> {
 
   redirect(`/orders/${order.id}`);
 }
+
+function parseDaysSequence(input: string): number[] {
+  return input
+    .split(',')
+    .map((part) => Number(part.trim()))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+// OP-05: oppfølgingsregelen kan overstyres per tilbud, direkte der man
+// jobber med tilbudet. En regel endret på ett tilbud påvirker ikke andre.
+export async function setQuoteFollowUpRule(formData: FormData): Promise<void> {
+  const session = await requireQuoteWrite();
+  const quoteId = String(formData.get('quoteId') ?? '');
+  const daysSequence = parseDaysSequence(String(formData.get('daysSequence') ?? ''));
+  const active = formData.get('active') === 'on';
+
+  const existing = await prisma.followUpRule.findUnique({ where: { quoteId } });
+
+  if (daysSequence.length === 0) {
+    if (existing) {
+      await prisma.followUpRule.delete({ where: { id: existing.id } });
+    }
+    revalidatePath(`/quotes/${quoteId}`);
+    return;
+  }
+
+  if (existing) {
+    await prisma.followUpRule.update({ where: { id: existing.id }, data: { daysSequence, active } });
+  } else {
+    await prisma.followUpRule.create({
+      data: { scope: 'QUOTE', quoteId, daysSequence, active, createdById: session.id },
+    });
+  }
+
+  await logAudit({
+    userId: session.id,
+    action: existing ? 'update' : 'create',
+    entityType: 'FollowUpRule',
+    entityId: existing?.id ?? 'ny',
+    after: { quoteId, daysSequence, active },
+  });
+
+  revalidatePath(`/quotes/${quoteId}`);
+}

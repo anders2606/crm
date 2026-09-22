@@ -266,3 +266,46 @@ export async function uploadDocument(formData: FormData): Promise<void> {
 
   revalidatePath(`/customers/${customerId}`);
 }
+
+function parseDaysSequence(input: string): number[] {
+  return input
+    .split(',')
+    .map((part) => Number(part.trim()))
+    .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+// OP-05: oppfølgingsregelen kan overstyres per kunde.
+export async function setCustomerFollowUpRule(formData: FormData): Promise<void> {
+  const session = await requirePermission(PERMISSIONS.CUSTOMER_WRITE);
+  const customerId = String(formData.get('customerId') ?? '');
+  const daysSequence = parseDaysSequence(String(formData.get('daysSequence') ?? ''));
+  const active = formData.get('active') === 'on';
+
+  const existing = await prisma.followUpRule.findUnique({ where: { customerId } });
+
+  if (daysSequence.length === 0) {
+    if (existing) {
+      await prisma.followUpRule.delete({ where: { id: existing.id } });
+    }
+    revalidatePath(`/customers/${customerId}`);
+    return;
+  }
+
+  if (existing) {
+    await prisma.followUpRule.update({ where: { id: existing.id }, data: { daysSequence, active } });
+  } else {
+    await prisma.followUpRule.create({
+      data: { scope: 'CUSTOMER', customerId, daysSequence, active, createdById: session.id },
+    });
+  }
+
+  await logAudit({
+    userId: session.id,
+    action: existing ? 'update' : 'create',
+    entityType: 'FollowUpRule',
+    entityId: existing?.id ?? 'ny',
+    after: { customerId, daysSequence, active },
+  });
+
+  revalidatePath(`/customers/${customerId}`);
+}

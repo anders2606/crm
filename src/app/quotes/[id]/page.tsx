@@ -20,6 +20,7 @@ import {
   createQuoteRevision,
   removeQuoteLine,
   requestSendQuote,
+  setQuoteFollowUpRule,
   setQuoteStatus,
   updateQuoteMeta,
 } from './actions';
@@ -72,6 +73,7 @@ export default async function QuoteDetailPage({
     include: {
       customer: true,
       lines: { orderBy: { sortOrder: 'asc' }, include: { material: true } },
+      followUpRule: true,
     },
   });
   if (!quote) {
@@ -306,6 +308,35 @@ export default async function QuoteDetailPage({
               </label>
               <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-800">
                 Send tilbud til {quote.customer.email ?? '(mangler e-post)'}
+              </button>
+            </form>
+          )}
+        </section>
+      )}
+
+      {!isDraft && (
+        <section className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-2 font-medium">Oppfølging (OP-02–06)</h2>
+          <p className="mb-4 text-sm text-slate-600">
+            {quote.nextFollowUpAt
+              ? `Neste automatiske påminnelse: ${new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short' }).format(quote.nextFollowUpAt)} (${quote.followUpsSent} sendt hittil).`
+              : 'Ingen automatisk påminnelse planlagt (tilbudet har fått ny status, eller regelen er av).'}
+          </p>
+          {canWrite && (
+            <form action={setQuoteFollowUpRule} className="flex flex-wrap items-center gap-2 text-sm">
+              <input type="hidden" name="quoteId" value={quote.id} />
+              <input
+                name="daysSequence"
+                placeholder="Bruk standardregel"
+                defaultValue={quote.followUpRule?.daysSequence.join(',') ?? ''}
+                className="rounded border border-slate-300 px-2 py-1.5"
+              />
+              <label className="flex items-center gap-1">
+                <input type="checkbox" name="active" defaultChecked={quote.followUpRule?.active ?? false} />
+                Aktiv
+              </label>
+              <button type="submit" className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-50">
+                Lagre regel for dette tilbudet
               </button>
             </form>
           )}

@@ -22,6 +22,7 @@ import {
   addContactPerson,
   completeTask,
   createTask,
+  setCustomerFollowUpRule,
   setCustomerGroups,
   updateCustomer,
   uploadDocument,
@@ -73,6 +74,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
       contactPersons: true,
       consents: { orderBy: { occurredAt: 'desc' } },
       groups: true,
+      followUpRule: true,
     },
   });
 
@@ -283,6 +285,30 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-4 font-medium">Oppfølging (OP-05)</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Overstyrer standardregelen (og eventuell kundegruppe-regel) for automatisk oppfølging av tilbud sendt til
+          denne kunden. La feltet stå tomt for å bruke standardregelen.
+        </p>
+        <form action={setCustomerFollowUpRule} className="flex flex-wrap items-center gap-2 text-sm">
+          <input type="hidden" name="customerId" value={customer.id} />
+          <input
+            name="daysSequence"
+            placeholder="Bruk standardregel"
+            defaultValue={customer.followUpRule?.daysSequence.join(',') ?? ''}
+            className="rounded border border-slate-300 px-2 py-1.5"
+          />
+          <label className="flex items-center gap-1">
+            <input type="checkbox" name="active" defaultChecked={customer.followUpRule?.active ?? false} />
+            Aktiv
+          </label>
+          <button type="submit" className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-50">
+            Lagre
+          </button>
+        </form>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
