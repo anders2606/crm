@@ -91,6 +91,11 @@ export default async function DashboardPage() {
             Maler
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.POWEROFFICE_MANAGE) && (
+          <Link href="/admin/poweroffice" className="underline">
+            PowerOffice
+          </Link>
+        )}
         <Link href="/governing-documents" className="underline">
           Planer og styrende dokumenter
         </Link>
