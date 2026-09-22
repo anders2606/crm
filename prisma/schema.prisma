@@ -146,6 +146,8 @@ model Customer {
   contactPersons ContactPerson[]
   consents       Consent[]
   groups         CustomerGroup[] @relation("CustomerToGroup")
+  quotes         Quote[]
+  followUpRule   FollowUpRule?
 
   @@index([orgNr])
   @@index([name])
@@ -232,7 +234,9 @@ model CustomerGroup {
   updatedAt   DateTime @updatedAt
   createdById String?
 
-  customers Customer[] @relation("CustomerToGroup")
+  customers     Customer[]     @relation("CustomerToGroup")
+  templates     Template[]
+  followUpRules FollowUpRule[]
 
   @@map("customer_groups")
 }
@@ -456,7 +460,7 @@ enum TaskStatus {
 // ---------------------------------------------------------------------------
 
 model Material {
-  id               String                @id @default(uuid())
+  id               String               @id @default(uuid())
   name             String
   tradeName        String?
   type             MaterialType
@@ -466,14 +470,15 @@ model Material {
   thicknessesMm    Int[]
   slabSizes        String[]
   maintenanceNotes String?
-  availability     MaterialAvailability  @default(AVAILABLE)
+  availability     MaterialAvailability @default(AVAILABLE)
   deletedAt        DateTime?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
   createdById      String?
 
   suppliers    MaterialSupplier[]
   priceEntries PriceEntry[]
+  quoteLines   QuoteLine[]
 
   @@index([type])
   @@index([name])
@@ -553,4 +558,217 @@ model ExchangeRate {
   @@unique([currency, date])
   @@index([currency, date])
   @@map("exchange_rates")
+}
+
+// ---------------------------------------------------------------------------
+// M5 Tilbud og ordre (TO-01–10, TO-15, OP-01–08, SD-01–04).
+//
+// Template/TextBlock bruker samme groupId+version+isCurrent-mønster som
+// Document (M2). Quote bruker et beslektet mønster for revisjoner (TO-10):
+// alle revisjoner av «samme» tilbud deler `groupId` (lik `id` for revisjon 1)
+// og `baseNumber`, mens `number` får synlig suffiks for revisjon > 1
+// (T-10001, T-10001-2, ...) og `revision` styrer rekkefølgen.
+//
+// Løpende numre (TO-15) hentes fra ekte Postgres-sekvenser (quote_number_seq,
+// order_number_seq), aldri fra en tellerkolonne, slik at numre aldri
+// gjenbrukes selv ved samtidighet eller sletting (se migreringen for DDL).
+//
+// SD-04: `termsSnapshot` fryser vilkår/tekstblokk-innholdet slik det var da
+// tilbudet ble sendt – en senere endring av malen påvirker aldri et sendt
+// tilbud, kun tilbud som opprettes eller sendes etter endringen.
+// ---------------------------------------------------------------------------
+
+model Template {
+  id              String         @id @default(uuid())
+  groupId         String
+  version         Int            @default(1)
+  isCurrent       Boolean        @default(true)
+  type            TemplateType
+  name            String
+  language        String         @default("nb")
+  customerGroupId String?
+  content         String
+  status          TemplateStatus @default(DRAFT)
+  comment         String? // SD-03: kommentar til denne versjonen
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  createdById     String?
+
+  customerGroup    CustomerGroup? @relation(fields: [customerGroupId], references: [id], onDelete: SetNull)
+  quotesAsTemplate Quote[]        @relation("QuoteTemplate")
+  followUpRules    FollowUpRule[]
+
+  @@index([groupId])
+  @@index([type, isCurrent])
+  @@map("templates")
+}
+
+enum TemplateType {
+  QUOTE
+  ORDER_CONFIRMATION
+  EMAIL
+  FOLLOWUP
+  NEWSLETTER
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model TextBlock {
+  id          String   @id @default(uuid())
+  groupId     String
+  version     Int      @default(1)
+  isCurrent   Boolean  @default(true)
+  name        String
+  language    String   @default("nb")
+  content     String
+  comment     String? // SD-03
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  @@index([groupId])
+  @@map("text_blocks")
+}
+
+model Quote {
+  id            String      @id @default(uuid())
+  groupId       String
+  baseNumber    Int
+  revision      Int         @default(1)
+  isCurrent     Boolean     @default(true)
+  number        String      @unique
+  status        QuoteStatus @default(DRAFT)
+  customerId    String
+  language      String      @default("nb")
+  validUntil    DateTime?   @db.Date
+  templateId    String?
+  // SD-04: frosset kopi av mal- og tekstblokkinnhold slik det var da tilbudet
+  // ble sendt (HTML), ikke en referanse som følger senere malendringer.
+  termsSnapshot String?
+
+  subtotalMinor Int    @default(0)
+  discountMinor Int    @default(0)
+  vatMinor      Int    @default(0)
+  totalMinor    Int    @default(0)
+  // Dekningsbidrag – kun internt, vises aldri til kunde (TO-05).
+  dbMinor       Int    @default(0)
+  currency      String @default("NOK")
+
+  lostReason String?
+
+  sentAt         DateTime?
+  respondedAt    DateTime?
+  followUpsSent  Int       @default(0)
+  nextFollowUpAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  template     Template?     @relation("QuoteTemplate", fields: [templateId], references: [id], onDelete: SetNull)
+  lines        QuoteLine[]
+  order        Order?
+  followUpRule FollowUpRule?
+
+  @@index([groupId])
+  @@index([customerId])
+  @@index([status])
+  @@index([nextFollowUpAt])
+  @@map("quotes")
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ANSWERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+// TO-04: linjer hentes fra materialbiblioteket eller skrives fritt.
+// Antall lagres som tusendeler (`quantityMilli`) for å unngå flyttall ved
+// f.eks. m²-mengder med desimaler (arbeidsregel 10).
+model QuoteLine {
+  id              String  @id @default(uuid())
+  quoteId         String
+  materialId      String?
+  description     String
+  quantityMilli   Int
+  unit            String
+  unitPriceMinor  Int
+  discountPercent Int     @default(0)
+  vatRatePercent  Int     @default(25)
+  lineTotalMinor  Int
+  sortOrder       Int     @default(0)
+
+  quote    Quote     @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  material Material? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId])
+  @@map("quote_lines")
+}
+
+// TO-08/TO-09: ordre opprettes fra et akseptert tilbud med ett klikk.
+// `transferredToPowerOffice` er en tydelig markering av at overføring til
+// PowerOffice ikke er bygget ennå (kommer i M6) – samme mønster som
+// kundesynk i M1.
+model Order {
+  id                       String      @id @default(uuid())
+  number                   String      @unique
+  quoteId                  String      @unique
+  status                   OrderStatus @default(CONFIRMED)
+  advancePercent           Int?
+  poweroffice_id           String?     @unique
+  transferredToPowerOffice Boolean     @default(false)
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
+  createdById              String?
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+
+  @@map("orders")
+}
+
+enum OrderStatus {
+  CONFIRMED
+  IN_PRODUCTION
+  DELIVERED
+  CANCELLED
+}
+
+// OP-02–06: oppfølgingsregler i prioritert rekkefølge tilbud > kunde >
+// kundegruppe > standard. Nøyaktig én av customerGroupId/customerId/quoteId
+// er satt avhengig av `scope` (CHECK-constraint i migreringen), untatt
+// DEFAULT som ikke peker på noen.
+model FollowUpRule {
+  id              String        @id @default(uuid())
+  scope           FollowUpScope
+  customerGroupId String?       @unique
+  customerId      String?       @unique
+  quoteId         String?       @unique
+  daysSequence    Int[]
+  templateId      String?
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  createdById     String?
+
+  customerGroup CustomerGroup? @relation(fields: [customerGroupId], references: [id], onDelete: Cascade)
+  customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quote         Quote?         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  template      Template?      @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@map("follow_up_rules")
+}
+
+enum FollowUpScope {
+  DEFAULT
+  CUSTOMER_GROUP
+  CUSTOMER
+  QUOTE
 }

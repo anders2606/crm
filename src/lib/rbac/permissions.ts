@@ -13,6 +13,13 @@ export const PERMISSIONS = {
   EMAIL_ACCOUNTS_MANAGE: 'email.accounts.manage',
   MATERIAL_READ: 'material.read',
   MATERIAL_WRITE: 'material.write',
+  QUOTE_READ: 'quote.read',
+  QUOTE_WRITE: 'quote.write',
+  ORDER_READ: 'order.read',
+  ORDER_WRITE: 'order.write',
+  // SD-02: sentralt malbibliotek (maler, tekstblokker, standard oppfølgingsregel)
+  // administreres samlet, uten hjelp fra utvikler.
+  TEMPLATE_MANAGE: 'template.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS] | (string & {});

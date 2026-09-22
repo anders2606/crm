@@ -6,6 +6,15 @@ export const ENTITY_TYPES = {
   ROLE: 'Role',
   USER: 'User',
   EMAIL_MESSAGE: 'EmailMessage',
+  QUOTE: 'Quote',
+  ORDER: 'Order',
+  MATERIAL: 'Material',
+  // SD-01: styrende dokumenter/planer gjenbruker Document med en fast
+  // entityId, siden de ikke tilhører én bestemt kunde/leverandør/tilbud.
+  GOVERNING_DOCUMENTS: 'GoverningDocuments',
 } as const;
+
+// SD-01: den ene, faste entityId-en for styrende dokumenter/planer.
+export const GOVERNING_DOCUMENTS_ENTITY_ID = 'singleton';
 
 export type EntityType = (typeof ENTITY_TYPES)[keyof typeof ENTITY_TYPES];
