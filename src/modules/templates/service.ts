@@ -164,11 +164,13 @@ export async function resolveTemplate(input: ResolveTemplateInput): Promise<Temp
 }
 
 /**
- * SD-04: fryser mal- og tekstblokkinnhold til ett HTML-øyeblikksbilde som
+ * SD-04: fryser mal- og tekstblokkinnhold til ett tekst-øyeblikksbilde som
  * lagres på tilbudet (Quote.termsSnapshot). En senere endring av malen
  * påvirker aldri et tilbud som allerede har fått snapshotet sitt satt.
+ * Innholdet er ren tekst (ikke HTML), siden det brukes både i PDF-en
+ * (@react-pdf/renderer) og som e-posttekst (M3s OutgoingMessage.text).
  */
 export function buildTermsSnapshot(templateContent: string, textBlocks: TextBlock[]): string {
-  const blocksHtml = textBlocks.map((block) => `<section data-textblock="${block.name}">${block.content}</section>`).join('\n');
-  return `${templateContent}\n${blocksHtml}`;
+  const blocksText = textBlocks.map((block) => block.content).join('\n\n');
+  return blocksText ? `${templateContent}\n\n${blocksText}` : templateContent;
 }

@@ -13,6 +13,7 @@ import {
   isPreviewableInBrowser,
   listDocumentGroupsForEntity,
 } from '@/modules/documents/service';
+import { QUOTE_STATUS_LABELS } from '@/modules/quotes/service';
 
 import {
   addActivity,
@@ -79,7 +80,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
     notFound();
   }
 
-  const [allGroups, activities, openTasks, users, documentGroups] = await Promise.all([
+  const [allGroups, activities, openTasks, users, documentGroups, quotes] = await Promise.all([
     prisma.customerGroup.findMany({ orderBy: { name: 'asc' } }),
     listActivities(ENTITY_TYPES.CUSTOMER, customer.id),
     prisma.task.findMany({
@@ -88,6 +89,10 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
     }),
     prisma.user.findMany({ select: { id: true, name: true } }),
     listDocumentGroupsForEntity(ENTITY_TYPES.CUSTOMER, customer.id),
+    prisma.quote.findMany({
+      where: { customerId: customer.id, isCurrent: true },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
 
   const userNameById = new Map(users.map((user) => [user.id, user.name]));
@@ -253,6 +258,31 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
             Legg til adresse
           </button>
         </form>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-medium">Tilbud</h2>
+          <Link href={`/quotes/new?customerId=${customer.id}`} className="text-sm underline">
+            Nytt tilbud
+          </Link>
+        </div>
+        {quotes.length === 0 ? (
+          <p className="text-sm text-slate-600">Ingen tilbud registrert ennå.</p>
+        ) : (
+          <ul className="space-y-1 text-sm">
+            {quotes.map((quote) => (
+              <li key={quote.id} className="flex items-center justify-between rounded border border-slate-100 px-3 py-2">
+                <Link href={`/quotes/${quote.id}`} className="underline">
+                  {quote.number}
+                </Link>
+                <span className="text-slate-600">
+                  {formatMoney(quote.totalMinor, quote.currency)} · {QUOTE_STATUS_LABELS[quote.status]}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">

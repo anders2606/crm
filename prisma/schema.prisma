@@ -634,20 +634,24 @@ model TextBlock {
 }
 
 model Quote {
-  id            String      @id @default(uuid())
-  groupId       String
-  baseNumber    Int
-  revision      Int         @default(1)
-  isCurrent     Boolean     @default(true)
-  number        String      @unique
-  status        QuoteStatus @default(DRAFT)
-  customerId    String
-  language      String      @default("nb")
-  validUntil    DateTime?   @db.Date
-  templateId    String?
+  id                   String      @id @default(uuid())
+  groupId              String
+  baseNumber           Int
+  revision             Int         @default(1)
+  isCurrent            Boolean     @default(true)
+  number               String      @unique
+  status               QuoteStatus @default(DRAFT)
+  customerId           String
+  language             String      @default("nb")
+  validUntil           DateTime?   @db.Date
+  templateId           String?
+  // TO-03: tekstblokker valgt inn i tilbudet (id-er, kun gjeldende versjoner
+  // ved sending fryses inn i termsSnapshot – selve valget her kan endres
+  // fritt fram til tilbudet sendes).
+  selectedTextBlockIds String[]    @default([])
   // SD-04: frosset kopi av mal- og tekstblokkinnhold slik det var da tilbudet
   // ble sendt (HTML), ikke en referanse som følger senere malendringer.
-  termsSnapshot String?
+  termsSnapshot        String?
 
   subtotalMinor Int    @default(0)
   discountMinor Int    @default(0)
@@ -659,10 +663,11 @@ model Quote {
 
   lostReason String?
 
-  sentAt         DateTime?
-  respondedAt    DateTime?
-  followUpsSent  Int       @default(0)
-  nextFollowUpAt DateTime?
+  sentAt                DateTime?
+  sentViaEmailAccountId String?
+  respondedAt           DateTime?
+  followUpsSent         Int       @default(0)
+  nextFollowUpAt        DateTime?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -675,6 +680,7 @@ model Quote {
   followUpRule FollowUpRule?
 
   @@index([groupId])
+  @@index([baseNumber])
   @@index([customerId])
   @@index([status])
   @@index([nextFollowUpAt])

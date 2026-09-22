@@ -82,7 +82,7 @@ export default async function NewTemplatePage({
         </div>
 
         <label className="block text-sm font-medium">
-          Innhold (HTML, flettefelt settes inn av systemet ved sending)
+          Innhold (ren tekst, flettefelt settes inn av systemet ved sending)
           <textarea
             name="content"
             required

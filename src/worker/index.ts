@@ -17,9 +17,11 @@ import { PgBoss } from 'pg-boss';
 
 import { getMailClient } from '@/integrations/mail';
 import { prisma } from '@/lib/db';
+import { QUOTE_SEND_QUEUE, type QuoteSendJobData } from '@/lib/jobs';
 import { decryptSecret } from '@/lib/secrets';
 import { syncAccountFolder } from '@/modules/email/sync';
 import { syncExchangeRates } from '@/modules/exchange-rates/service';
+import { deliverQuote } from '@/modules/quotes/send';
 
 const SYNC_QUEUE = 'email-sync-all-accounts';
 const FOLDERS = ['INBOX', 'Sent'];
@@ -144,12 +146,18 @@ async function main(): Promise<void> {
   await boss.start();
   await boss.createQueue(SYNC_QUEUE); // idempotent – trygt å kalle ved hver oppstart
   await boss.createQueue(FX_QUEUE);
+  await boss.createQueue(QUOTE_SEND_QUEUE);
 
   await boss.work(SYNC_QUEUE, async () => {
     await syncAllAccounts();
   });
   await boss.work(FX_QUEUE, async () => {
     await syncAllExchangeRates();
+  });
+  // TO-06: eneste sted SMTP-kallet for å sende et tilbud faktisk skjer
+  // (arbeidsregel 12). Serveraksjonen legger kun jobben i køen.
+  await boss.work<QuoteSendJobData>(QUOTE_SEND_QUEUE, async ([job]) => {
+    await deliverQuote(job!.data);
   });
 
   // Minuttoppløsning er nok til å holde M3s 2-minutters akseptansekriterium

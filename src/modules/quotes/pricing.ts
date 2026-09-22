@@ -9,6 +9,22 @@
 // øre med samme Math.round-konvensjon som resten av systemet (src/lib/money.ts).
 import { prisma } from '@/lib/db';
 
+/**
+ * Tolker et norsk-formatert antall ("2,5") til heltall i tusendeler
+ * (QuoteLine.quantityMilli), samme mønster som parseMoneyToCents (src/lib/money.ts).
+ */
+export function parseQuantityToMilli(input: string): number | null {
+  const cleaned = input.trim().replace(/[\s ]/g, '').replace(',', '.');
+  if (cleaned === '') {
+    return null;
+  }
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return Math.round(value * 1000);
+}
+
 export interface QuoteLineInput {
   quantityMilli: number;
   unitPriceMinor: number;
