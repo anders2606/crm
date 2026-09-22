@@ -36,7 +36,7 @@ Eier er ikke utvikler. Forklar valg og kommandoer kort og på norsk, og si tydel
 | M2 Dokumenter | Bygget (se README for detaljer og bevisst utsatte BØR/KAN-punkter) |
 | M3 E-post | Bygget – NB: reell IMAP/SMTP-tilkobling mot Domeneshop ikke verifisert av Claude (nettverksbegrensning i utviklingsøkten), se README | 
 | M4 Materialbibliotek | Bygget – NB: reell Norges Bank-tilkobling ikke verifisert av Claude (samme nettverksbegrensning som M3), se README |
-| M5 Tilbud og ordre | Ikke startet |
+| M5 Tilbud og ordre | Bygget (se README for detaljer og bevisst utsatte BØR-punkter) |
 | M6 PowerOffice | Ikke startet |
 | M7 Bilag og betalinger | Ikke startet |
 | M8 Utsendelser og rapporter | Ikke startet |

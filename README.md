@@ -4,8 +4,8 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 
 ## Status
 
-**M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter, M3 E-post og M4 Materialbibliotek er
-bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
+**M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter, M3 E-post, M4 Materialbibliotek og
+M5 Tilbud og ordre er bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
 
 - M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
 - M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
@@ -15,6 +15,10 @@ bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
   dokumentarkivet.
 - M4: materialbibliotek med bilder, leverandørkobling, historiske innkjøps-/utsalgspriser (omregnet
   til NOK med daglige Norges Bank-kurser hentet av workeren) og en enkel prisgraf.
+- M5: tilbud med linjer fra materialbiblioteket eller fritekst, automatisk sum/rabatt/MVA/DB,
+  maler/tekstblokker med versjonering og vilkår som fryses ved sending, PDF-generering og sending
+  fra systemet, statusworkflow og revisjoner, ett-klikks konvertering til ordre med
+  ordrebekreftelse, automatiske oppfølgingspåminnelser og pipeline-oversikt.
 
 ## Oppstart (utvikling)
 
@@ -30,7 +34,7 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 5. Seed grunndata (rettigheter, roller «Administrator»/«Selger», én admin-bruker): `npm run db:seed`.
 6. Start appen: `npm run dev` og åpne http://localhost:3000.
 7. Logg inn med e-posten/passordet skriptet skrev ut. Ved første innlogging vises en 2FA-nøkkel du legger inn i en autentiseringsapp (Apple Kodegenerator, Google Authenticator e.l.) – dette er obligatorisk (GE-04).
-8. For e-post (M3) og valutakurser (M4): start workeren i et eget terminalvindu med `npm run worker`. Uten den synkroniseres verken e-post eller valutakurser.
+8. For e-post (M3), valutakurser (M4) og sending/oppfølging av tilbud (M5): start workeren i et eget terminalvindu med `npm run worker`. Uten den synkroniseres ikke e-post/valutakurser, og «Send tilbud» legger seg i kø uten å bli sendt før workeren kjører.
 
 ## Tester
 
@@ -50,7 +54,9 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 
 - Next.js 14 (App Router), TypeScript strict, Tailwind CSS.
 - PostgreSQL 16 + Prisma. M0: User, Role, Permission, Session, AuditLog. M1: Customer, Supplier,
-  Address, ContactPerson, CustomerGroup, Consent, Activity, Task.
+  Address, ContactPerson, CustomerGroup, Consent, Activity, Task. M2: Document. M3: EmailAccount,
+  EmailMessage. M4: Material, MaterialSupplier, PriceEntry, ExchangeRate. M5: Template, TextBlock,
+  Quote, QuoteLine, Order, FollowUpRule.
 - Innlogging: passord (scrypt, ingen ekstern avhengighet) + obligatorisk TOTP to-faktor (håndrullet etter RFC 6238, ingen ekstern avhengighet), sesjon lagret i database.
 - Rettigheter sjekkes på serveren i hver side/server action/API-rute (`src/lib/rbac`), aldri kun i grensesnittet.
 - Alle endringer logges i `AuditLog` (`src/lib/audit`).
@@ -146,3 +152,64 @@ noe ikke stemmer.
 avhenger av M5/M7), MA-07 (tekstblokk-integrasjon for vedlikeholdsråd – fritekstfelt er på plass,
 selve tekstblokk-systemet kommer med SD-02 i M5), MA-09/MA-10 (lagerstatus og publisering til
 marmor.no, KAN – kun etter avtale med deg).
+
+## M5: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene TO-01–10, TO-15, OP-01–08 og SD-01–04 (kap. 19).
+
+**Maler og tekstblokker** (`/admin/templates`, `/admin/text-blocks`): administrator oppretter og
+redigerer maler (tilbud, ordrebekreftelse, e-post, oppfølging, nyhetsbrev) og tekstblokker uten
+hjelp fra utvikler, med språk og valgfri kundegruppe. Samme versjoneringsmønster som `Document` fra
+M2 (`groupId`+`version`+`isCurrent`): hver endring lagres som en ny versjon, ingen slettes, og
+tidligere versjoner kan gjenopprettes (SD-03).
+
+**Tilbud** (`/quotes`): selgeren velger kunde, legger til linjer fra materialbiblioteket eller
+fritekst (antall/enhet/pris/rabatt/MVA), og systemet regner automatisk ut sum, rabatt, MVA og
+dekningsbidrag (DB, kun synlig internt – aldri på PDF-en eller i sendte e-poster). Riktig mal
+velges automatisk ut fra type/språk/kundegruppe (mest spesifikk vinner), og vilkårene fryses til et
+øyeblikksbilde (`termsSnapshot`) når «Send tilbud» trykkes – en senere endring av malen påvirker
+aldri et tilbud som allerede har fått snapshotet sitt (SD-04). PDF-en genereres med
+`@react-pdf/renderer` og kan forhåndsvises før sending.
+
+**Sending går via en egen kø** (`src/lib/jobs.ts`, pg-boss): siden dette er første gang systemet
+faktisk sender noe (M3 bygde kun mottak), går selve SMTP-kallet kun gjennom workeren
+(arbeidsregel 12) – serveraksjonen fryser bare innholdet og legger en jobb i køen. Sendt PDF
+arkiveres automatisk som dokument på kunden (TO-06). Status (utkast/sendt/besvart/akseptert/
+avslått/utløpt) kan settes manuelt med årsak ved avslag, og revisjoner (TO-10) kopierer linjene til
+en ny versjon med suffiks i tilbudsnummeret (`T-10001-2`) uten å røre den forrige. Løpenumre
+(`T-10001`, `O-10001`, TO-15) hentes fra ekte Postgres-sekvenser, aldri gjenbrukt.
+
+**Ordre** (`/orders`): et akseptert tilbud konverteres til ordre med ett klikk (TO-08), som lager en
+ordrebekreftelse fra mal og arkiverer den på kunden. TO-09 (overføring til PowerOffice Go) kan ikke
+fullføres før M6 – ordren merkes tydelig «ikke overført til PowerOffice ennå», akkurat som
+kundesynk-plassholderen fra M1.
+
+**Automatisk oppfølging** (`/admin/followup-rules`, OP-02–06): administrator setter en
+standardregel (antall dager etter sending, f.eks. 7 og 14) og kan overstyre den per kundegruppe;
+selger kan overstyre videre per kunde og per tilbud, direkte der man jobber med tilbudet. Den mest
+spesifikke regelen som finnes vinner i sin helhet, slik at en regel endret på ett tilbud aldri
+påvirker andre. En ny daglig workerjobb sender påminnelser etter regelens dagsekvens, stopper når
+kunden har svart på e-post siden tilbudet ble sendt eller tilbudet har fått ny status, setter
+tilbud med utløpt gyldighet til status «utløpt», og varsler selger med en oppgave når et tilbud
+nærmer seg utløp.
+
+**Pipeline** (`/quotes/pipeline`, OP-07) viser åpne tilbud med verdi, status, en enkel statusbasert
+sannsynlighet (ingen egen datamodell for dette – kravet ber kun om at sannsynlighet vises) og neste
+automatiske oppfølgingsdato. **Planer og styrende dokumenter** (`/governing-documents`, SD-01)
+gjenbruker `Document`-versjoneringen fra M2 med en fast entityId. OP-01 (full historikk) og OP-08
+(telefonsamtale-/møteregistrering) var allerede dekket av M1s tidslinje-/aktivitetsmodul.
+
+**En reell CJS/ESM-inkompatibilitet ble funnet og fikset underveis:** `@react-pdf/renderer` sin
+underavhengighet `@react-pdf/hyphenate` mangler et `require`-vilkår for språkfilene sine i sin
+`package.json`, som gjorde at PDF-generering krasjet i workeren (kjørt via `tsx` uten
+`"type": "module"` i `package.json`). Løst med et ekte dynamisk `import()` i
+`src/modules/quotes/pdf.tsx`/`src/modules/orders/pdf.tsx`, som alltid går via Node sin
+ESM-laster uavhengig av hvordan resten av filen transpileres. Hele sendeflyten (linje → PDF →
+e-post → dokument → statusoppdatering) og oppfølgingsflyten (påminnelse → stopp ved svar → utløp →
+varsel) er verifisert direkte mot mock-integrasjonen, i tillegg til e2e-testene under.
+
+**Bevisst utsatt** (BØR/KAN, som i tidligere milepæler – til M8 eller etter avtale): TO-11
+(automatisk gjenkjenning av aksept i e-postsvar – krever tekstgjenkjenning), TO-12 (delfakturering
+og forskudd), TO-13 (auto-bestilling til leverandør), TO-14 (leverandørtilbud-merking i
+tilordningskøen), OP-09 (varsel ved kundesvar), OP-10 (automatisk e-post etter levering), SD-05
+(godkjenning av nye malversjoner før bruk), SD-06 (påminnelse om årlig dokumentgjennomgang).
