@@ -180,10 +180,11 @@ model Supplier {
   updatedAt           DateTime  @updatedAt
   createdById         String?
 
-  addresses      Address[]
-  contactPersons ContactPerson[]
-  materials      MaterialSupplier[]
-  priceEntries   PriceEntry[]
+  addresses       Address[]
+  contactPersons  ContactPerson[]
+  materials       MaterialSupplier[]
+  priceEntries    PriceEntry[]
+  invoiceStatuses SupplierInvoiceStatus[]
 
   @@index([name])
   @@map("suppliers")
@@ -324,6 +325,9 @@ model Document {
   category    DocumentCategory
   storageKey  String
   ocrText     String? // DO-06 (BØR) – fylles inn når OCR-indeksering bygges
+  // BI-04: SHA-256 av filinnholdet, brukt til å hindre at samme
+  // leverandørfaktura videresendes til PowerOffice to ganger.
+  contentHash String?
   entityType  String
   entityId    String
   deletedAt   DateTime?
@@ -333,6 +337,7 @@ model Document {
 
   @@index([entityType, entityId])
   @@index([groupId])
+  @@index([entityType, entityId, contentHash])
   @@map("documents")
 }
 
@@ -730,15 +735,22 @@ model QuoteLine {
 // PowerOffice ikke er bygget ennå (kommer i M6) – samme mønster som
 // kundesynk i M1.
 model Order {
-  id                       String      @id @default(uuid())
-  number                   String      @unique
-  quoteId                  String      @unique
-  status                   OrderStatus @default(CONFIRMED)
+  id                       String                @id @default(uuid())
+  number                   String                @unique
+  quoteId                  String                @unique
+  status                   OrderStatus           @default(CONFIRMED)
   advancePercent           Int?
-  poweroffice_id           String?     @unique
-  transferredToPowerOffice Boolean     @default(false)
-  createdAt                DateTime    @default(now())
-  updatedAt                DateTime    @updatedAt
+  poweroffice_id           String?               @unique
+  transferredToPowerOffice Boolean               @default(false)
+  // IN-10/12: hentes fra PowerOffice sin utgående faktura matchet på
+  // ExternalImportReference = ordrenummeret (satt av CRM ved overføring,
+  // src/modules/poweroffice/order-transfer.ts) – CRM tolker aldri selv om
+  // en faktura er betalt.
+  powerOfficeInvoiceNo     String?
+  paymentStatus            InvoicePaymentStatus?
+  paymentSyncedAt          DateTime?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
   createdById              String?
 
   quote Quote @relation(fields: [quoteId], references: [id], onDelete: Restrict)
@@ -751,6 +763,15 @@ enum OrderStatus {
   IN_PRODUCTION
   DELIVERED
   CANCELLED
+}
+
+// M7 (BI-02/03, IN-12): felles status for en faktura sett fra PowerOffice sin
+// side (utgående mot kunde, inngående mot leverandør). Beregnes alltid fra
+// PowerOffice sin Balance/TotalAmount, aldri av CRM selv.
+enum InvoicePaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
 }
 
 // OP-02–06: oppfølgingsregler i prioritert rekkefølge tilbud > kunde >
@@ -840,4 +861,74 @@ model SyncLog {
   @@index([integration, createdAt])
   @@index([status])
   @@map("sync_logs")
+}
+
+// ---------------------------------------------------------------------------
+// M7 Bilag og betalinger (BI-01–07, LE-07–08, IN-10–13). PowerOffice er
+// fasit for bilag og betalingsstatus (kap. 10/18) – tabellene under er
+// read-only speil av PowerOffice sine egne tall, aldri en egen
+// bilagstolkning. Bankfilimport skriver aldri tilbake til PowerOffice.
+// ---------------------------------------------------------------------------
+
+// BI-02/03: speil av PowerOffice sine inngående fakturaer (/IncomingInvoices)
+// for én leverandør, oppdatert av en timebasert workerjobb. Ikke en egen
+// bilagsarkiv – kun beløp/forfall/status til visning på leverandørkortet.
+model SupplierInvoiceStatus {
+  id               String               @id @default(uuid())
+  supplierId       String
+  powerOfficeId    String
+  invoiceNo        String?
+  totalAmountMinor Int
+  balanceMinor     Int
+  dueDate          DateTime?            @db.Date
+  status           InvoicePaymentStatus
+  syncedAt         DateTime             @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, powerOfficeId])
+  @@map("supplier_invoice_statuses")
+}
+
+// LE-08 reserve: kontoutskrift (CAMT.053/CSV) lastet opp manuelt og matchet
+// mot åpne poster når PowerOffice ikke har rukket å bokføre betalingen ennå.
+model BankStatementImport {
+  id           String              @id @default(uuid())
+  fileName     String
+  format       BankStatementFormat
+  importedAt   DateTime            @default(now())
+  importedById String?
+
+  transactions BankTransaction[]
+
+  @@map("bank_statement_imports")
+}
+
+enum BankStatementFormat {
+  CAMT053
+  CSV
+}
+
+model BankTransaction {
+  id                String    @id @default(uuid())
+  importId          String
+  bookingDate       DateTime  @db.Date
+  amountMinor       Int
+  currency          String
+  kid               String?
+  reference         String?
+  counterpartyName  String?
+  // Matcher mot Customer (innbetaling, IN-10) eller Supplier (utbetaling,
+  // IN-11) – samme entityType+entityId-mønster som Activity/Task/Document.
+  matchedEntityType String?
+  matchedEntityId   String?
+  matchedInvoiceNo  String?
+  matchedAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  import BankStatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@index([importId])
+  @@index([kid])
+  @@map("bank_transactions")
 }
