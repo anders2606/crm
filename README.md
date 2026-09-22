@@ -4,10 +4,11 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 
 ## Status
 
-**M0 Fundament og M1 Kunder og leverandører er bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
+**M0 Fundament, M1 Kunder og leverandører og M2 Dokumenter er bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
 
 - M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
 - M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
+- M2: dokumentopplasting (dra-og-slipp, også fra mobilkamera) på kunde-/leverandørkortet, med kategorisering, inline forhåndsvisning av PDF/bilder og versjonering av tegninger.
 
 ## Oppstart (utvikling)
 
@@ -32,9 +33,10 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 
 ## Drift og backup
 
-- `npm run db:backup` tar en `pg_dump` av databasen til `BACKUP_DIR` (standard `./data/backups`) og fjerner dumper eldre enn `BACKUP_RETENTION_DAYS` (standard 30 dager). Kjøres automatisk før `npm run dev`/`npm run start` (DR-03), forutsatt at `pg_dump` finnes i PATH.
+- `npm run db:backup` tar en `pg_dump` av databasen OG et `tar.gz`-arkiv av dokumentmappen (`STORAGE_DIR`) til `BACKUP_DIR` (standard `./data/backups`), og fjerner begge deler når de er eldre enn `BACKUP_RETENTION_DAYS` (standard 30 dager). Kjøres automatisk før `npm run dev`/`npm run start` (DR-03), forutsatt at `pg_dump`/`tar` finnes i PATH.
+- Dokumenter lagres på lokal disk under `STORAGE_DIR` (standard `./data/documents`), bak et lagringsgrensesnitt (`src/lib/storage.ts`) slik at DO-08 kan utvides til S3 senere uten kodeendring.
 - Helsesjekk: `GET /api/health` (IF-06) svarer 200 når databasen er tilgjengelig, ellers 503.
-- **Gjenstår til M9 (serverpakke):** DMG-pakking, kontrollpanel, launchd-oppstart i servermodus, full 30-dagers rotasjon til ekstern/kryptert disk, og migrering mellom lokal modus og Mac mini (DR-05, DR-10–17).
+- **Gjenstår til M9 (serverpakke):** DMG-pakking, kontrollpanel, launchd-oppstart i servermodus, full 30-dagers rotasjon til ekstern/kryptert disk (database OG dokumenter), og migrering mellom lokal modus og Mac mini (DR-05, DR-10–17).
 - **Gjenstår ellers:** nøkler i macOS-nøkkelring i stedet for `.env` er planlagt for lokal modus/servermodus (DR-08) – i utvikling brukes kun `.env` per arbeidsregel 6.
 
 ## Arkitektur
@@ -61,3 +63,14 @@ M2/M3/M5/M7).
 **Bevisst utsatt** (BØR/KAN eller avhenger av senere milepæler): KU-07 (Brønnøysund-oppslag – krever
 workeren, kap. 15/18, som ikke er bygget ennå), KU-09 (kobling kunde↔prosjekt), LE-06
 (e-postintegrasjon → M3), LE-07/08 (bilag/betaling → M7), LE-10–12.
+
+## M2: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene DO-01–05 og DO-08 (kap. 19). `Document` kobles til Customer/Supplier med samme
+`entityType`+`entityId`-mønster som Activity/Task (Project/Quote/Order/Material/EmailMessage
+finnes ikke før senere milepæler). Ny versjon av et dokument setter forrige `isCurrent=false`, men
+den slettes aldri og forblir åpnebar.
+
+**Bevisst utsatt:** DO-06 (fulltekst-søk/OCR med Tesseract – BØR, egen indekseringsjobb), DO-07
+(dele dokument som e-postvedlegg – avhenger av e-postutsending i M3), DO-09 (DWG-visning i
+nettleser – KAN, kun etter avtale med eier).

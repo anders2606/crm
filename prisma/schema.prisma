@@ -289,6 +289,50 @@ model Task {
   @@map("tasks")
 }
 
+// ---------------------------------------------------------------------------
+// M2 Dokumenter (DO-01–05, DO-08). Kobles til «hvilken som helst hovedentitet»
+// (kap. 17: Customer/Supplier/Project/Quote/Order/Material/EmailMessage) med
+// samme entityType+entityId-mønster som Activity/Task, siden de fleste av
+// disse entitetene ikke finnes før senere milepæler.
+//
+// Versjonering (DO-04): alle versjoner av «samme» dokument deler `groupId`
+// (lik `id` for første versjon). Ny versjon setter forrige `isCurrent=false`,
+// men den forblir tilgjengelig (aldri slettet).
+// ---------------------------------------------------------------------------
+model Document {
+  id          String           @id @default(uuid())
+  groupId     String
+  version     Int              @default(1)
+  isCurrent   Boolean          @default(true)
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  category    DocumentCategory
+  storageKey  String
+  ocrText     String? // DO-06 (BØR) – fylles inn når OCR-indeksering bygges
+  entityType  String
+  entityId    String
+  deletedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  createdById String?
+
+  @@index([entityType, entityId])
+  @@index([groupId])
+  @@map("documents")
+}
+
+enum DocumentCategory {
+  DRAWING
+  PHOTO
+  QUOTE_SENT
+  QUOTE_RECEIVED
+  ORDER_CONFIRMATION
+  INVOICE
+  CONTRACT
+  OTHER
+}
+
 enum CustomerType {
   COMPANY
   PRIVATE

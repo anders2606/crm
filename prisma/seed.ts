@@ -6,6 +6,12 @@ import { PrismaClient } from '@prisma/client';
 import { hashPassword } from '../src/lib/auth/password';
 import { PERMISSIONS } from '../src/lib/rbac/permissions';
 
+try {
+  process.loadEnvFile();
+} catch {
+  // Ingen .env til stede – variablene må da allerede være satt i prosessmiljøet.
+}
+
 const prisma = new PrismaClient();
 
 const SELGER_PERMISSIONS: string[] = [

@@ -1,13 +1,28 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { DocumentUploadForm } from '@/components/document-upload-form';
 import { listActivities } from '@/lib/activity';
 import { ENTITY_TYPES } from '@/lib/entity-types';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { AuthenticationRequiredError, PermissionDeniedError, PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
+import {
+  DOCUMENT_CATEGORY_LABELS,
+  formatFileSize,
+  isPreviewableInBrowser,
+  listDocumentGroupsForEntity,
+} from '@/modules/documents/service';
 
-import { addActivity, addAddress, addContactPerson, completeTask, createTask, updateSupplier } from './actions';
+import {
+  addActivity,
+  addAddress,
+  addContactPerson,
+  completeTask,
+  createTask,
+  updateSupplier,
+  uploadDocument,
+} from './actions';
 
 const ADDRESS_TYPE_LABELS: Record<string, string> = {
   VISIT: 'Besøksadresse',
@@ -55,13 +70,14 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
     notFound();
   }
 
-  const [activities, openTasks, users] = await Promise.all([
+  const [activities, openTasks, users, documentGroups] = await Promise.all([
     listActivities(ENTITY_TYPES.SUPPLIER, supplier.id),
     prisma.task.findMany({
       where: { entityType: ENTITY_TYPES.SUPPLIER, entityId: supplier.id, status: 'OPEN' },
       orderBy: [{ dueAt: 'asc' }, { createdAt: 'asc' }],
     }),
     prisma.user.findMany({ select: { id: true, name: true } }),
+    listDocumentGroupsForEntity(ENTITY_TYPES.SUPPLIER, supplier.id),
   ]);
 
   const userNameById = new Map(users.map((user) => [user.id, user.name]));
@@ -264,6 +280,85 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
             Legg til adresse
           </button>
         </form>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-4 font-medium">Dokumenter</h2>
+        {documentGroups.length > 0 ? (
+          <ul className="mb-6 space-y-4 text-sm">
+            {documentGroups.map((group) => (
+              <li key={group.groupId} className="rounded border border-slate-100 p-3">
+                <div>
+                  <a
+                    href={`/api/documents/${group.current.id}/file`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium underline"
+                  >
+                    {group.current.fileName}
+                  </a>
+                  <span className="ml-2 text-slate-500">
+                    {DOCUMENT_CATEGORY_LABELS[group.current.category]} – v{group.current.version}{' '}
+                    (gjeldende) – {formatFileSize(group.current.sizeBytes)}
+                  </span>
+                </div>
+
+                {isPreviewableInBrowser(group.current.mimeType) &&
+                  (group.current.mimeType.startsWith('image/') ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/api/documents/${group.current.id}/file`}
+                      alt={group.current.fileName}
+                      className="mt-2 max-h-48 rounded border border-slate-200"
+                    />
+                  ) : (
+                    <embed
+                      src={`/api/documents/${group.current.id}/file`}
+                      type="application/pdf"
+                      className="mt-2 h-64 w-full rounded border border-slate-200"
+                    />
+                  ))}
+
+                {group.previousVersions.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-slate-600">
+                      Tidligere versjoner ({group.previousVersions.length})
+                    </summary>
+                    <ul className="mt-1 space-y-1 pl-4 text-xs">
+                      {group.previousVersions.map((version) => (
+                        <li key={version.id}>
+                          <a
+                            href={`/api/documents/${version.id}/file`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                          >
+                            v{version.version} – {version.fileName}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-slate-600">Last opp ny versjon</summary>
+                  <div className="mt-2">
+                    <DocumentUploadForm
+                      action={uploadDocument}
+                      hiddenFields={{ supplierId: supplier.id, replacesDocumentId: group.current.id }}
+                      showCategory={false}
+                      submitLabel="Last opp ny versjon"
+                    />
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mb-6 text-sm text-slate-600">Ingen dokumenter lastet opp ennå.</p>
+        )}
+        <DocumentUploadForm action={uploadDocument} hiddenFields={{ supplierId: supplier.id }} />
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">

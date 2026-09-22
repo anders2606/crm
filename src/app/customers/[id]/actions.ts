@@ -3,12 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import type { CustomerType } from '@prisma/client';
 
+import type { DocumentCategory } from '@prisma/client';
+
 import { recordActivity } from '@/lib/activity';
 import { logAudit } from '@/lib/audit/log';
 import { ENTITY_TYPES } from '@/lib/entity-types';
 import { prisma } from '@/lib/db';
 import { parseMoneyToCents } from '@/lib/money';
 import { PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
+import { DOCUMENT_CATEGORY_LABELS, saveDocumentUpload } from '@/modules/documents/service';
 
 const ADDRESS_TYPES = ['VISIT', 'INVOICE', 'DELIVERY'] as const;
 type AddressTypeInput = (typeof ADDRESS_TYPES)[number];
@@ -218,6 +221,48 @@ export async function completeTask(formData: FormData): Promise<void> {
   const customerId = String(formData.get('customerId') ?? '');
 
   await prisma.task.update({ where: { id: taskId }, data: { status: 'DONE' } });
+
+  revalidatePath(`/customers/${customerId}`);
+}
+
+// DO-01/DO-02/DO-04/DO-05: opplasting (ny eller ny versjon av et eksisterende dokument).
+export async function uploadDocument(formData: FormData): Promise<void> {
+  const session = await requireCustomerWrite();
+  const customerId = String(formData.get('customerId') ?? '');
+  const file = formData.get('file');
+  const category = String(formData.get('category') ?? 'OTHER') as DocumentCategory;
+  const replacesDocumentId = String(formData.get('replacesDocumentId') ?? '') || null;
+
+  if (!(file instanceof File) || file.size === 0) {
+    return;
+  }
+
+  const document = await saveDocumentUpload({
+    entityType: ENTITY_TYPES.CUSTOMER,
+    entityId: customerId,
+    category,
+    file,
+    replacesDocumentId,
+    userId: session.id,
+  });
+
+  await recordActivity({
+    type: 'STATUS',
+    text: replacesDocumentId
+      ? `Ny versjon lastet opp: ${document.fileName} (v${document.version})`
+      : `Dokument lastet opp: ${document.fileName} (${DOCUMENT_CATEGORY_LABELS[document.category]})`,
+    entityType: ENTITY_TYPES.CUSTOMER,
+    entityId: customerId,
+    createdById: session.id,
+  });
+
+  await logAudit({
+    userId: session.id,
+    action: replacesDocumentId ? 'update' : 'create',
+    entityType: 'Document',
+    entityId: document.id,
+    after: { fileName: document.fileName, category: document.category, version: document.version },
+  });
 
   revalidatePath(`/customers/${customerId}`);
 }

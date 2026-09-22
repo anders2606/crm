@@ -1,6 +1,8 @@
 // Nullstiller og reseeder en egen testdatabase (aldri utviklings- eller
 // produksjonsdata, arbeidsregel 5) før Playwright-testene kjører.
 import { execSync } from 'node:child_process';
+import { mkdir, rm } from 'node:fs/promises';
+import path from 'node:path';
 
 import { PrismaClient } from '@prisma/client';
 
@@ -9,6 +11,8 @@ import { hashPassword } from '../../src/lib/auth/password';
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   'postgresql://pietra:pietra@localhost:5432/pietra_unica_crm_test';
+
+export const TEST_STORAGE_DIR = path.join(process.cwd(), 'data', 'documents-e2e');
 
 export const E2E_ADMIN = {
   email: 'e2e-admin@pietraunica.test',
@@ -28,11 +32,16 @@ export default async function globalSetup(): Promise<void> {
     stdio: 'inherit',
   });
 
+  // M2: fjern opplastede testfiler fra forrige kjøring (kan bli store, f.eks. 50 MB-testen).
+  await rm(TEST_STORAGE_DIR, { recursive: true, force: true });
+  await mkdir(TEST_STORAGE_DIR, { recursive: true });
+
   const prisma = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
 
   try {
-    // M1-tabeller nullstilles også, slik at KU-12-testen ("tomt register")
+    // M1/M2-tabeller nullstilles også, slik at KU-12-testen ("tomt register")
     // er pålitelig på tvers av kjøringer, ikke bare første gang.
+    await prisma.document.deleteMany();
     await prisma.task.deleteMany();
     await prisma.activity.deleteMany();
     await prisma.consent.deleteMany();
