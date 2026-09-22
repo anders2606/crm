@@ -43,8 +43,10 @@ export default async function globalSetup(): Promise<void> {
   const prisma = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
 
   try {
-    // M1/M2/M3/M4/M5-tabeller nullstilles også, slik at KU-12-testen ("tomt
+    // M1/M2/M3/M4/M5/M6-tabeller nullstilles også, slik at KU-12-testen ("tomt
     // register") er pålitelig på tvers av kjøringer, ikke bare første gang.
+    await prisma.syncLog.deleteMany();
+    await prisma.powerOfficeSettings.deleteMany();
     await prisma.followUpRule.deleteMany();
     await prisma.order.deleteMany();
     await prisma.quoteLine.deleteMany();
@@ -91,6 +93,7 @@ export default async function globalSetup(): Promise<void> {
       'order.read',
       'order.write',
       'template.manage',
+      'poweroffice.manage',
     ];
     const permissions = await Promise.all(
       permissionKeys.map((key) => prisma.permission.create({ data: { key } })),

@@ -20,6 +20,8 @@ export const PERMISSIONS = {
   // SD-02: sentralt malbibliotek (maler, tekstblokker, standard oppfølgingsregel)
   // administreres samlet, uten hjelp fra utvikler.
   TEMPLATE_MANAGE: 'template.manage',
+  // IN-20/IN-23: tilkobling, nøkler og miljøvalg for PowerOffice – kun administrator.
+  POWEROFFICE_MANAGE: 'poweroffice.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS] | (string & {});

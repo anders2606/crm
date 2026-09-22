@@ -127,20 +127,26 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id                  String       @id @default(uuid())
-  type                CustomerType
-  name                String
-  orgNr               String?
-  email               String?
-  phone               String?
-  creditLimitCents    Int?
-  creditLimitCurrency String       @default("NOK")
-  paymentTermsDays    Int?
-  poweroffice_id      String?      @unique
-  deletedAt           DateTime?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  createdById         String?
+  id                      String       @id @default(uuid())
+  type                    CustomerType
+  name                    String
+  orgNr                   String?
+  email                   String?
+  phone                   String?
+  creditLimitCents        Int?
+  creditLimitCurrency     String       @default("NOK")
+  paymentTermsDays        Int?
+  poweroffice_id          String?      @unique
+  // IN-03/KU-03: cachet reskontrodata fra PowerOffice – kan ikke hentes live i
+  // en sideforespørsel (arbeidsregel 12), så workeren oppdaterer dette minst
+  // hver time (IN-22) og kundekortet leser fra cachen.
+  outstandingBalanceMinor Int?
+  overdueAmountMinor      Int?
+  balanceSyncedAt         DateTime?
+  deletedAt               DateTime?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  createdById             String?
 
   addresses      Address[]
   contactPersons ContactPerson[]
@@ -777,4 +783,50 @@ enum FollowUpScope {
   CUSTOMER_GROUP
   CUSTOMER
   QUOTE
+}
+
+// ---------------------------------------------------------------------------
+// M6 PowerOffice (IN-01–04, IN-20–23, KU-03, KU-08). Arbeidsregel 12: alt av
+// faktisk PowerOffice-trafikk skjer kun fra workeren, aldri i en
+// brukerforespørsel – admin-sidene legger kun jobber i køen eller leser
+// cachede felt/SyncLog.
+// ---------------------------------------------------------------------------
+
+// IN-23: miljøvalg og nøkler settes i administrasjonen, ikke i kode/.env.
+// Nøklene krypteres på samme måte som e-postkontopassord (src/lib/secrets.ts).
+// Én rad («singleton») – ingen egen UI for å opprette flere tilkoblinger.
+model PowerOfficeSettings {
+  id                       String                 @id @default("singleton")
+  environment              PowerOfficeEnvironment @default(DEMO)
+  encryptedApplicationKey  String?
+  encryptedClientKey       String?
+  encryptedSubscriptionKey String?
+  // IN-23: første gang PRODUCTION velges er synk kun lesende inntil
+  // administrator eksplisitt slår på skriving.
+  writeEnabled             Boolean                @default(false)
+  updatedAt                DateTime               @updatedAt
+  updatedById              String?
+
+  @@map("poweroffice_settings")
+}
+
+enum PowerOfficeEnvironment {
+  DEMO
+  PRODUCTION
+}
+
+// IN-21: logg over synkroniseringer og tydelig varsel ved feil.
+model SyncLog {
+  id          String   @id @default(uuid())
+  integration String
+  direction   String // "in" | "out"
+  entityType  String?
+  entityId    String?
+  status      String // "success" | "error"
+  message     String?
+  createdAt   DateTime @default(now())
+
+  @@index([integration, createdAt])
+  @@index([status])
+  @@map("sync_logs")
 }
