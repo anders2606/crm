@@ -1,6 +1,6 @@
 // M2 Dokumenter: felles opplastings-/versjonerings-/listelogikk delt mellom
 // kunde- og leverandørkortet (og senere prosjekt/tilbud/ordre/materiale).
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 import type { Document, DocumentCategory } from '@prisma/client';
@@ -69,6 +69,10 @@ export async function saveDocumentBuffer(input: SaveDocumentBufferInput): Promis
   const storageKey = `${input.entityType}/${input.entityId}/${randomUUID()}${path.extname(input.fileName)}`;
   await getStorage().put(storageKey, input.buffer);
   const sizeBytes = input.buffer.byteLength;
+  // BI-04: brukes til å hindre at samme leverandørfaktura videresendes til
+  // PowerOffice to ganger, uansett om den kommer på e-post eller lastes opp
+  // manuelt (src/modules/poweroffice/invoice-forward.ts).
+  const contentHash = createHash('sha256').update(input.buffer).digest('hex');
 
   if (input.replacesDocumentId) {
     const previous = await prisma.document.findUniqueOrThrow({
@@ -87,6 +91,7 @@ export async function saveDocumentBuffer(input: SaveDocumentBufferInput): Promis
           sizeBytes,
           category: previous.category,
           storageKey,
+          contentHash,
           entityType: input.entityType,
           entityId: input.entityId,
           createdById: input.userId,
@@ -109,6 +114,7 @@ export async function saveDocumentBuffer(input: SaveDocumentBufferInput): Promis
       sizeBytes,
       category: input.category,
       storageKey,
+      contentHash,
       entityType: input.entityType,
       entityId: input.entityId,
       createdById: input.userId,

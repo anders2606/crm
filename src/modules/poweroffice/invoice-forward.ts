@@ -47,6 +47,36 @@ export async function forwardSupplierInvoiceToPowerOffice(data: PowerOfficeInvoi
     return;
   }
 
+  // BI-04: samme filinnhold skal ikke videresendes til PowerOffice to
+  // ganger for samme leverandør, uansett om den kommer på e-post (kan
+  // motta samme faktura flere ganger som purring) eller er lastet opp
+  // manuelt flere ganger ved en feil.
+  if (document.contentHash) {
+    const alreadyForwarded = await prisma.document.findFirst({
+      where: {
+        id: { not: document.id },
+        entityType: ENTITY_TYPES.SUPPLIER,
+        entityId: data.supplierId,
+        contentHash: document.contentHash,
+        forwardedToPowerOfficeAt: { not: null },
+      },
+    });
+    if (alreadyForwarded) {
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { forwardedToPowerOfficeAt: new Date() },
+      });
+      await recordSyncLog({
+        direction: 'out',
+        status: 'success',
+        entityType: ENTITY_TYPES.SUPPLIER,
+        entityId: supplier.id,
+        message: `Hoppet over: ${document.fileName} har identisk innhold som et dokument allerede sendt til PowerOffice (BI-04).`,
+      });
+      return;
+    }
+  }
+
   try {
     const fileStream = await getStorage().read(document.storageKey);
     const buffer = await readToBuffer(fileStream);
@@ -69,6 +99,11 @@ export async function forwardSupplierInvoiceToPowerOffice(data: PowerOfficeInvoi
         attachments: [{ filename: document.fileName, contentType: document.mimeType, content: buffer }],
       },
     );
+
+    await prisma.document.update({
+      where: { id: document.id },
+      data: { forwardedToPowerOfficeAt: new Date() },
+    });
 
     await recordActivity({
       type: 'EMAIL',

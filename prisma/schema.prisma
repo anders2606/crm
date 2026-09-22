@@ -315,25 +315,28 @@ model Task {
 // men den forblir tilgjengelig (aldri slettet).
 // ---------------------------------------------------------------------------
 model Document {
-  id          String           @id @default(uuid())
-  groupId     String
-  version     Int              @default(1)
-  isCurrent   Boolean          @default(true)
-  fileName    String
-  mimeType    String
-  sizeBytes   Int
-  category    DocumentCategory
-  storageKey  String
-  ocrText     String? // DO-06 (BØR) – fylles inn når OCR-indeksering bygges
+  id                       String           @id @default(uuid())
+  groupId                  String
+  version                  Int              @default(1)
+  isCurrent                Boolean          @default(true)
+  fileName                 String
+  mimeType                 String
+  sizeBytes                Int
+  category                 DocumentCategory
+  storageKey               String
+  ocrText                  String? // DO-06 (BØR) – fylles inn når OCR-indeksering bygges
   // BI-04: SHA-256 av filinnholdet, brukt til å hindre at samme
   // leverandørfaktura videresendes til PowerOffice to ganger.
-  contentHash String?
-  entityType  String
-  entityId    String
-  deletedAt   DateTime?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  createdById String?
+  contentHash              String?
+  // BI-01/BI-04: satt når dokumentet (eller et identisk innhold for samme
+  // leverandør) er videresendt til PowerOffice sitt fakturamottak.
+  forwardedToPowerOfficeAt DateTime?
+  entityType               String
+  entityId                 String
+  deletedAt                DateTime?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  createdById              String?
 
   @@index([entityType, entityId])
   @@index([groupId])

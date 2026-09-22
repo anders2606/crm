@@ -7,6 +7,7 @@ import { recordActivity } from '@/lib/activity';
 import { ENTITY_TYPES } from '@/lib/entity-types';
 import { prisma } from '@/lib/db';
 import { decryptSecret } from '@/lib/secrets';
+import { enqueuePowerOfficeInvoiceForward } from '@/lib/jobs';
 import { getMailClient } from '@/integrations/mail';
 import type { MailAccountCredentials, ParsedIncomingMessage } from '@/integrations/mail';
 import { saveDocumentBuffer } from '@/modules/documents/service';
@@ -112,15 +113,31 @@ async function storeMessage(
   const targetEntityId = match?.entityId ?? created.id;
 
   for (const attachment of message.attachments) {
-    await saveDocumentBuffer({
+    // BI-01/LE-07: en PDF-faktura fra en e-post allerede koblet til riktig
+    // leverandør videresendes automatisk til PowerOffice sitt fakturamottak
+    // (samme workerflyt som manuell opplasting, IN-04/M6). Ukjente avsendere
+    // (ingen match) rører vi ikke – de skal først tilordnes manuelt (EP-05).
+    const isSupplierInvoice =
+      direction === 'IN' && attachment.contentType === 'application/pdf' && match?.entityType === ENTITY_TYPES.SUPPLIER;
+
+    const document = await saveDocumentBuffer({
       entityType: targetEntityType,
       entityId: targetEntityId,
-      category: 'OTHER',
+      category: isSupplierInvoice ? 'INVOICE' : 'OTHER',
       fileName: attachment.filename,
       mimeType: attachment.contentType,
       buffer: attachment.content,
       userId: null,
     });
+
+    if (isSupplierInvoice && match) {
+      await enqueuePowerOfficeInvoiceForward({
+        documentId: document.id,
+        supplierId: match.entityId,
+        emailAccountId: account.id,
+        userId: null,
+      });
+    }
   }
 
   if (match) {
