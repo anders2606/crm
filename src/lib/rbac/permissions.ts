@@ -22,6 +22,9 @@ export const PERMISSIONS = {
   TEMPLATE_MANAGE: 'template.manage',
   // IN-20/IN-23: tilkobling, nøkler og miljøvalg for PowerOffice – kun administrator.
   POWEROFFICE_MANAGE: 'poweroffice.manage',
+  // LE-08: opplasting og manuell matching av kontoutskrift (reserve når
+  // PowerOffice ikke har bokført betalingen ennå).
+  BANK_IMPORT_MANAGE: 'bank.import.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS] | (string & {});

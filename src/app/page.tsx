@@ -96,6 +96,11 @@ export default async function DashboardPage() {
             PowerOffice
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.BANK_IMPORT_MANAGE) && (
+          <Link href="/admin/bank-import" className="underline">
+            Bankfilimport
+          </Link>
+        )}
         <Link href="/governing-documents" className="underline">
           Planer og styrende dokumenter
         </Link>
