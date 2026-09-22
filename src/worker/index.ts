@@ -17,11 +17,19 @@ import { PgBoss } from 'pg-boss';
 
 import { getMailClient } from '@/integrations/mail';
 import { prisma } from '@/lib/db';
-import { POWEROFFICE_SYNC_QUEUE, QUOTE_SEND_QUEUE, type PowerOfficeSyncJobData, type QuoteSendJobData } from '@/lib/jobs';
+import {
+  POWEROFFICE_INVOICE_QUEUE,
+  POWEROFFICE_SYNC_QUEUE,
+  QUOTE_SEND_QUEUE,
+  type PowerOfficeInvoiceForwardJobData,
+  type PowerOfficeSyncJobData,
+  type QuoteSendJobData,
+} from '@/lib/jobs';
 import { decryptSecret } from '@/lib/secrets';
 import { syncAccountFolder } from '@/modules/email/sync';
 import { syncExchangeRates } from '@/modules/exchange-rates/service';
 import { syncAllCustomerBalances } from '@/modules/poweroffice/balances';
+import { forwardSupplierInvoiceToPowerOffice } from '@/modules/poweroffice/invoice-forward';
 import { transferOrderToPowerOffice } from '@/modules/poweroffice/order-transfer';
 import { runPowerOfficeSyncJob } from '@/modules/poweroffice/sync';
 import { runFollowUpCycle } from '@/modules/quotes/followup-worker';
@@ -159,6 +167,7 @@ async function main(): Promise<void> {
   await boss.createQueue(FOLLOWUP_QUEUE);
   await boss.createQueue(POWEROFFICE_SYNC_QUEUE);
   await boss.createQueue(POWEROFFICE_BALANCE_QUEUE);
+  await boss.createQueue(POWEROFFICE_INVOICE_QUEUE);
 
   await boss.work(SYNC_QUEUE, async () => {
     await syncAllAccounts();
@@ -194,6 +203,11 @@ async function main(): Promise<void> {
     if (synced > 0) {
       console.log(`[worker] PowerOffice-reskontro: ${synced} kunde(r) oppdatert`);
     }
+  });
+  // IN-04: eneste sted SMTP-kallet for å videresende leverandørfakturaer
+  // til PowerOffice sitt fakturamottak skjer.
+  await boss.work<PowerOfficeInvoiceForwardJobData>(POWEROFFICE_INVOICE_QUEUE, async ([job]) => {
+    await forwardSupplierInvoiceToPowerOffice(job!.data);
   });
 
   // Minuttoppløsning er nok til å holde M3s 2-minutters akseptansekriterium

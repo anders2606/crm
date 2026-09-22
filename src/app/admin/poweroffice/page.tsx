@@ -163,6 +163,22 @@ export default async function PowerOfficeSettingsPage({
             </div>
           </details>
 
+          <label className="block font-medium">
+            Fakturamottak (IN-04)
+            <input
+              type="email"
+              name="invoiceReceiptEmail"
+              defaultValue={settings?.invoiceReceiptEmail ?? ''}
+              placeholder="f.eks. 12345@fakturamottak.poweroffice.net"
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+            />
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              E-postadressen til PowerOffice sitt fakturamottak for denne klienten. Finnes i egen
+              PowerOffice-konto – kan ikke slås opp herfra. Leverandørfakturaer lastet opp manuelt på
+              leverandørkortet videresendes hit.
+            </span>
+          </label>
+
           <label className="flex items-center gap-2 font-medium">
             <input type="checkbox" name="writeEnabled" defaultChecked={settings?.writeEnabled ?? false} />
             Tillat skriving til PowerOffice (opprette/endre kunder, leverandører og ordre)

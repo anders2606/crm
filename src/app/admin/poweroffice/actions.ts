@@ -24,6 +24,7 @@ export async function savePowerOfficeSettings(formData: FormData): Promise<void>
   const subscriptionKey = String(formData.get('subscriptionKey') ?? '').trim();
   const apiBaseUrlOverride = String(formData.get('apiBaseUrlOverride') ?? '').trim();
   const tokenUrlOverride = String(formData.get('tokenUrlOverride') ?? '').trim();
+  const invoiceReceiptEmail = String(formData.get('invoiceReceiptEmail') ?? '').trim();
   const writeEnabledRequested = formData.get('writeEnabled') === 'on';
 
   if (environment !== 'DEMO' && environment !== 'PRODUCTION') {
@@ -42,6 +43,7 @@ export async function savePowerOfficeSettings(formData: FormData): Promise<void>
     ...(subscriptionKey ? { encryptedSubscriptionKey: encryptSecret(subscriptionKey) } : {}),
     apiBaseUrlOverride: apiBaseUrlOverride || null,
     tokenUrlOverride: tokenUrlOverride || null,
+    invoiceReceiptEmail: invoiceReceiptEmail || null,
     writeEnabled,
     updatedById: session.id,
   };

@@ -3,13 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import type { DocumentCategory } from '@prisma/client';
 
+import { redirect } from 'next/navigation';
+
 import { recordActivity } from '@/lib/activity';
 import { logAudit } from '@/lib/audit/log';
 import { ENTITY_TYPES } from '@/lib/entity-types';
+import { enqueuePowerOfficeInvoiceForward } from '@/lib/jobs';
 import { prisma } from '@/lib/db';
 import { parseMoneyToCents } from '@/lib/money';
 import { PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 import { DOCUMENT_CATEGORY_LABELS, saveDocumentUpload } from '@/modules/documents/service';
+import { getAccessibleEmailAccounts } from '@/modules/email/access';
 
 const ADDRESS_TYPES = ['VISIT', 'INVOICE', 'DELIVERY'] as const;
 type AddressTypeInput = (typeof ADDRESS_TYPES)[number];
@@ -222,6 +226,50 @@ export async function uploadDocument(formData: FormData): Promise<void> {
     entityType: 'Document',
     entityId: document.id,
     after: { fileName: document.fileName, category: document.category, version: document.version },
+  });
+
+  revalidatePath(`/suppliers/${supplierId}`);
+}
+
+// IN-04: manuell opplasting av en leverandørfaktura (PDF), som deretter
+// videresendes til PowerOffice sitt fakturamottak. Selve SMTP-kallet skjer
+// kun i workeren (arbeidsregel 12, se src/modules/poweroffice/invoice-forward.ts).
+export async function uploadSupplierInvoiceToPowerOffice(formData: FormData): Promise<void> {
+  const session = await requireSupplierWrite();
+  const supplierId = String(formData.get('supplierId') ?? '');
+  const emailAccountId = String(formData.get('emailAccountId') ?? '');
+  const file = formData.get('file');
+
+  if (!(file instanceof File) || file.size === 0 || file.type !== 'application/pdf') {
+    redirect(`/suppliers/${supplierId}?error=invoice_must_be_pdf`);
+  }
+
+  const accessibleAccounts = await getAccessibleEmailAccounts(session.id);
+  if (!accessibleAccounts.some((account) => account.id === emailAccountId)) {
+    redirect(`/suppliers/${supplierId}?error=cannot_send_invoice`);
+  }
+
+  const document = await saveDocumentUpload({
+    entityType: ENTITY_TYPES.SUPPLIER,
+    entityId: supplierId,
+    category: 'INVOICE',
+    file,
+    userId: session.id,
+  });
+
+  await enqueuePowerOfficeInvoiceForward({
+    documentId: document.id,
+    supplierId,
+    emailAccountId,
+    userId: session.id,
+  });
+
+  await logAudit({
+    userId: session.id,
+    action: 'create',
+    entityType: 'Document',
+    entityId: document.id,
+    after: { fileName: document.fileName, category: document.category, queuedForPowerOffice: true },
   });
 
   revalidatePath(`/suppliers/${supplierId}`);

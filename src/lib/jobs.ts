@@ -26,6 +26,18 @@ export type PowerOfficeSyncJobData =
   // IN-02: overfører et ordre-/fakturagrunnlag til PowerOffice.
   | { kind: 'transfer-order'; orderId: string; userId: string | null };
 
+// IN-04: videresender en manuelt opplastet leverandørfaktura (PDF) som
+// e-post til PowerOffice sitt fakturamottak. SMTP-kallet skjer kun i
+// workeren (arbeidsregel 12, se src/modules/poweroffice/invoice-forward.ts).
+export const POWEROFFICE_INVOICE_QUEUE = 'poweroffice-invoice-forward';
+
+export interface PowerOfficeInvoiceForwardJobData {
+  documentId: string;
+  supplierId: string;
+  emailAccountId: string;
+  userId: string | null;
+}
+
 let producerPromise: Promise<PgBoss> | null = null;
 
 async function getProducer(): Promise<PgBoss> {
@@ -40,6 +52,7 @@ async function getProducer(): Promise<PgBoss> {
       await boss.start();
       await boss.createQueue(QUOTE_SEND_QUEUE);
       await boss.createQueue(POWEROFFICE_SYNC_QUEUE);
+      await boss.createQueue(POWEROFFICE_INVOICE_QUEUE);
       return boss;
     })();
   }
@@ -56,4 +69,10 @@ export async function enqueueQuoteSend(data: QuoteSendJobData): Promise<void> {
 export async function enqueuePowerOfficeSync(data: PowerOfficeSyncJobData): Promise<void> {
   const boss = await getProducer();
   await boss.send(POWEROFFICE_SYNC_QUEUE, data);
+}
+
+/** IN-04: legger en leverandørfaktura i videresendingskøen. */
+export async function enqueuePowerOfficeInvoiceForward(data: PowerOfficeInvoiceForwardJobData): Promise<void> {
+  const boss = await getProducer();
+  await boss.send(POWEROFFICE_INVOICE_QUEUE, data);
 }

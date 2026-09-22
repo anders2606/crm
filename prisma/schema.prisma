@@ -808,6 +808,10 @@ model PowerOfficeSettings {
   // fra det innebygde beste anslaget.
   apiBaseUrlOverride       String?
   tokenUrlOverride         String?
+  // IN-04: PowerOffice sitt fakturamottak er en e-postadresse spesifikk for
+  // hver klient (finnes ikke i OpenAPI-spesifikasjonen og kan ikke slås opp
+  // via API-et) – administrator må hente denne fra egen PowerOffice-konto.
+  invoiceReceiptEmail      String?
   // IN-23: første gang PRODUCTION velges er synk kun lesende inntil
   // administrator eksplisitt slår på skriving.
   writeEnabled             Boolean                @default(false)

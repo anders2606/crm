@@ -49,3 +49,17 @@ export function getStorage(): StorageBackend {
   }
   return backend;
 }
+
+// Node sin fs.ReadStream -> Web ReadableStream-adapter kaster en ubehandlet
+// feil ("Controller is already closed") når mottakeren avbryter lesingen før
+// strømmen er ferdig (f.eks. nettleserens PDF-forhåndsvisning). Filene her er
+// ikke store nok til at buffret lesing er et reelt problem, så vi leser hele
+// filen først i stedet – både ved visning (DO-03) og e-postvedlegg (IN-04).
+export function readToBuffer(stream: Readable): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', reject);
+  });
+}

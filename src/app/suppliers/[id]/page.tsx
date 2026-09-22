@@ -13,6 +13,7 @@ import {
   isPreviewableInBrowser,
   listDocumentGroupsForEntity,
 } from '@/modules/documents/service';
+import { getAccessibleEmailAccounts } from '@/modules/email/access';
 
 import {
   addActivity,
@@ -22,7 +23,13 @@ import {
   createTask,
   updateSupplier,
   uploadDocument,
+  uploadSupplierInvoiceToPowerOffice,
 } from './actions';
+
+const SUPPLIER_ERROR_MESSAGES: Record<string, string> = {
+  invoice_must_be_pdf: 'Leverandørfakturaen må lastes opp som PDF.',
+  cannot_send_invoice: 'Velg en e-postkonto du har tilgang til for å videresende fakturaen.',
+};
 
 const ADDRESS_TYPE_LABELS: Record<string, string> = {
   VISIT: 'Besøksadresse',
@@ -41,9 +48,16 @@ function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }
 
-export default async function SupplierDetailPage({ params }: { params: { id: string } }) {
+export default async function SupplierDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  let session;
   try {
-    await requirePermission(PERMISSIONS.SUPPLIER_READ);
+    session = await requirePermission(PERMISSIONS.SUPPLIER_READ);
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) {
       redirect(`/login?next=/suppliers/${params.id}`);
@@ -70,7 +84,7 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
     notFound();
   }
 
-  const [activities, openTasks, users, documentGroups] = await Promise.all([
+  const [activities, openTasks, users, documentGroups, emailAccounts] = await Promise.all([
     listActivities(ENTITY_TYPES.SUPPLIER, supplier.id),
     prisma.task.findMany({
       where: { entityType: ENTITY_TYPES.SUPPLIER, entityId: supplier.id, status: 'OPEN' },
@@ -78,9 +92,11 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
     }),
     prisma.user.findMany({ select: { id: true, name: true } }),
     listDocumentGroupsForEntity(ENTITY_TYPES.SUPPLIER, supplier.id),
+    getAccessibleEmailAccounts(session.id),
   ]);
 
   const userNameById = new Map(users.map((user) => [user.id, user.name]));
+  const invoiceError = typeof searchParams.error === 'string' ? searchParams.error : null;
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 px-4 py-10">
@@ -359,6 +375,55 @@ export default async function SupplierDetailPage({ params }: { params: { id: str
           <p className="mb-6 text-sm text-slate-600">Ingen dokumenter lastet opp ennå.</p>
         )}
         <DocumentUploadForm action={uploadDocument} hiddenFields={{ supplierId: supplier.id }} />
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-2 font-medium">Send leverandørfaktura til PowerOffice (IN-04)</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Last opp en PDF-faktura fra denne leverandøren. Den arkiveres på leverandørkortet og
+          videresendes som e-post til PowerOffice sitt fakturamottak.
+        </p>
+        {invoiceError && (
+          <p className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+            {SUPPLIER_ERROR_MESSAGES[invoiceError] ?? invoiceError}
+          </p>
+        )}
+        {emailAccounts.length === 0 ? (
+          <p className="text-sm text-slate-600">
+            Ingen tilgjengelige e-postkontoer å sende fra. Sett opp en konto under{' '}
+            <Link href="/email/accounts" className="underline">
+              e-postkontoer
+            </Link>
+            .
+          </p>
+        ) : (
+          <form action={uploadSupplierInvoiceToPowerOffice} className="space-y-3 text-sm">
+            <input type="hidden" name="supplierId" value={supplier.id} />
+            <label className="block font-medium">
+              Faktura (PDF)
+              <input
+                type="file"
+                name="file"
+                accept="application/pdf"
+                required
+                className="mt-1 block w-full text-sm"
+              />
+            </label>
+            <label className="block font-medium">
+              Send fra
+              <select name="emailAccountId" className="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+                {emailAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.address}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-50">
+              Last opp og send til PowerOffice
+            </button>
+          </form>
+        )}
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
