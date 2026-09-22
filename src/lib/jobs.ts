@@ -14,6 +14,16 @@ export interface QuoteSendJobData {
   userId: string | null;
 }
 
+// IN-01/KU-08: match-eller-opprett kjøres i workeren for hver nye kunde/
+// leverandør, slik at PowerOffice-kall aldri skjer i en brukerforespørsel.
+export const POWEROFFICE_SYNC_QUEUE = 'poweroffice-sync';
+
+export type PowerOfficeSyncJobData =
+  | { kind: 'match-customer'; customerId: string }
+  | { kind: 'match-supplier'; supplierId: string }
+  | { kind: 'import-all' }
+  | { kind: 'lookup-org-nr'; entityType: 'Customer' | 'Supplier'; orgNr: string };
+
 let producerPromise: Promise<PgBoss> | null = null;
 
 async function getProducer(): Promise<PgBoss> {
@@ -27,6 +37,7 @@ async function getProducer(): Promise<PgBoss> {
       boss.on('error', (error: Error) => console.error('[jobs] pg-boss-feil:', error));
       await boss.start();
       await boss.createQueue(QUOTE_SEND_QUEUE);
+      await boss.createQueue(POWEROFFICE_SYNC_QUEUE);
       return boss;
     })();
   }
@@ -37,4 +48,10 @@ async function getProducer(): Promise<PgBoss> {
 export async function enqueueQuoteSend(data: QuoteSendJobData): Promise<void> {
   const boss = await getProducer();
   await boss.send(QUOTE_SEND_QUEUE, data);
+}
+
+/** IN-01/IN-02/KU-08: legger en PowerOffice-synkjobb i køen. */
+export async function enqueuePowerOfficeSync(data: PowerOfficeSyncJobData): Promise<void> {
+  const boss = await getProducer();
+  await boss.send(POWEROFFICE_SYNC_QUEUE, data);
 }

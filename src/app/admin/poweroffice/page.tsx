@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { AuthenticationRequiredError, PermissionDeniedError, PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 
-import { savePowerOfficeSettings } from './actions';
+import { importAllFromPowerOfficeAction, lookupOrgNrAction, savePowerOfficeSettings } from './actions';
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short', timeStyle: 'short' }).format(date);
@@ -12,6 +12,12 @@ function formatDate(date: Date): string {
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_environment: 'Velg et gyldig miljø.',
+  missing_org_nr: 'Skriv inn et organisasjonsnummer.',
+};
+
+const NOTICE_MESSAGES: Record<string, string> = {
+  import_queued: 'Henting av alle kunder/leverandører er lagt i kø – se synkroniseringsloggen under.',
+  lookup_queued: 'Oppslaget er lagt i kø – se synkroniseringsloggen under.',
 };
 
 export default async function PowerOfficeSettingsPage({
@@ -76,6 +82,9 @@ export default async function PowerOfficeSettingsPage({
           Produksjon er nå valgt. Synk er kun lesende inntil du eksplisitt slår på skriving under og
           lagrer på nytt (IN-23).
         </p>
+      )}
+      {notice && notice !== 'production_read_only' && (
+        <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{NOTICE_MESSAGES[notice] ?? notice}</p>
       )}
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
@@ -161,6 +170,37 @@ export default async function PowerOfficeSettingsPage({
 
           <button type="submit" className="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-800">
             Lagre
+          </button>
+        </form>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-2 font-medium">Hent inn kunder/leverandører (IN-01)</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          CRM starter tomt – ingenting hentes inn automatisk. Du velger selv å hente inn alle, ett
+          bestemt organisasjonsnummer, eller ingenting.
+        </p>
+
+        <form action={importAllFromPowerOfficeAction} className="mb-6">
+          <button type="submit" className="rounded border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
+            Hent alle kunder og leverandører fra PowerOffice
+          </button>
+        </form>
+
+        <form action={lookupOrgNrAction} className="flex flex-wrap items-end gap-2 text-sm">
+          <label className="block font-medium">
+            Type
+            <select name="entityType" defaultValue="Customer" className="mt-1 rounded border border-slate-300 px-3 py-2">
+              <option value="Customer">Kunde</option>
+              <option value="Supplier">Leverandør</option>
+            </select>
+          </label>
+          <label className="block font-medium">
+            Organisasjonsnummer
+            <input name="orgNr" required className="mt-1 rounded border border-slate-300 px-3 py-2" />
+          </label>
+          <button type="submit" className="rounded border border-slate-300 px-4 py-2 hover:bg-slate-50">
+            Hent inn
           </button>
         </form>
       </section>

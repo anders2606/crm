@@ -17,10 +17,11 @@ import { PgBoss } from 'pg-boss';
 
 import { getMailClient } from '@/integrations/mail';
 import { prisma } from '@/lib/db';
-import { QUOTE_SEND_QUEUE, type QuoteSendJobData } from '@/lib/jobs';
+import { POWEROFFICE_SYNC_QUEUE, QUOTE_SEND_QUEUE, type PowerOfficeSyncJobData, type QuoteSendJobData } from '@/lib/jobs';
 import { decryptSecret } from '@/lib/secrets';
 import { syncAccountFolder } from '@/modules/email/sync';
 import { syncExchangeRates } from '@/modules/exchange-rates/service';
+import { runPowerOfficeSyncJob } from '@/modules/poweroffice/sync';
 import { runFollowUpCycle } from '@/modules/quotes/followup-worker';
 import { deliverQuote } from '@/modules/quotes/send';
 
@@ -152,6 +153,7 @@ async function main(): Promise<void> {
   await boss.createQueue(FX_QUEUE);
   await boss.createQueue(QUOTE_SEND_QUEUE);
   await boss.createQueue(FOLLOWUP_QUEUE);
+  await boss.createQueue(POWEROFFICE_SYNC_QUEUE);
 
   await boss.work(SYNC_QUEUE, async () => {
     await syncAllAccounts();
@@ -170,6 +172,10 @@ async function main(): Promise<void> {
     if (remindersSent > 0 || expiryWarnings > 0) {
       console.log(`[worker] Oppfølging: ${remindersSent} påminnelse(r) sendt, ${expiryWarnings} utløpsvarsel(er) opprettet`);
     }
+  });
+  // IN-01/IN-20: eneste sted PowerOffice-kallene for kunde-/leverandørsynk skjer.
+  await boss.work<PowerOfficeSyncJobData>(POWEROFFICE_SYNC_QUEUE, async ([job]) => {
+    await runPowerOfficeSyncJob(job!.data);
   });
 
   // Minuttoppløsning er nok til å holde M3s 2-minutters akseptansekriterium

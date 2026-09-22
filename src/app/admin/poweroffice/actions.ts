@@ -6,6 +6,7 @@ import type { PowerOfficeEnvironment } from '@prisma/client';
 
 import { logAudit } from '@/lib/audit/log';
 import { prisma } from '@/lib/db';
+import { enqueuePowerOfficeSync } from '@/lib/jobs';
 import { encryptSecret } from '@/lib/secrets';
 import { PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 
@@ -64,4 +65,23 @@ export async function savePowerOfficeSettings(formData: FormData): Promise<void>
   }
 
   revalidatePath('/admin/poweroffice');
+}
+
+// IN-01: administrator velger å hente inn "alle" fra PowerOffice.
+export async function importAllFromPowerOfficeAction(): Promise<void> {
+  await requirePermission(PERMISSIONS.POWEROFFICE_MANAGE);
+  await enqueuePowerOfficeSync({ kind: 'import-all' });
+  redirect('/admin/poweroffice?notice=import_queued');
+}
+
+// IN-01: administrator velger å hente inn "et utvalg" – én bestemt post på org.nr.
+export async function lookupOrgNrAction(formData: FormData): Promise<void> {
+  await requirePermission(PERMISSIONS.POWEROFFICE_MANAGE);
+  const entityType = formData.get('entityType') === 'Supplier' ? 'Supplier' : 'Customer';
+  const orgNr = String(formData.get('orgNr') ?? '').trim();
+  if (!orgNr) {
+    redirect('/admin/poweroffice?error=missing_org_nr');
+  }
+  await enqueuePowerOfficeSync({ kind: 'lookup-org-nr', entityType, orgNr });
+  redirect('/admin/poweroffice?notice=lookup_queued');
 }

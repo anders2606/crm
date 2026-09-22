@@ -7,6 +7,7 @@ import { recordActivity } from '@/lib/activity';
 import { logAudit } from '@/lib/audit/log';
 import { ENTITY_TYPES } from '@/lib/entity-types';
 import { prisma } from '@/lib/db';
+import { enqueuePowerOfficeSync } from '@/lib/jobs';
 import { parseMoneyToCents } from '@/lib/money';
 import { PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 import { findPotentialDuplicateCustomers } from '@/modules/customers/duplicate-check';
@@ -86,6 +87,9 @@ export async function createCustomer(formData: FormData): Promise<void> {
     entityId: customer.id,
     after: { name: customer.name, type: customer.type, orgNr: customer.orgNr, email: customer.email },
   });
+
+  // IN-01/KU-08: match mot PowerOffice (eller opprett der) skjer i workeren.
+  await enqueuePowerOfficeSync({ kind: 'match-customer', customerId: customer.id });
 
   redirect(`/customers/${customer.id}`);
 }
