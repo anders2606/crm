@@ -63,6 +63,14 @@ export default async function DashboardPage() {
             Leverandører
           </Link>
         )}
+        <Link href="/email/unassigned" className="underline">
+          Tilordningskø (e-post)
+        </Link>
+        {hasPermission(session, PERMISSIONS.EMAIL_ACCOUNTS_MANAGE) && (
+          <Link href="/email/accounts" className="underline">
+            E-postkontoer
+          </Link>
+        )}
         {hasPermission(session, PERMISSIONS.ADMIN_ROLES_MANAGE) && (
           <Link href="/admin/roles" className="underline">
             Roller og rettigheter

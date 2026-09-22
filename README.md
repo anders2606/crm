@@ -4,11 +4,15 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 
 ## Status
 
-**M0 Fundament, M1 Kunder og leverandører og M2 Dokumenter er bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
+**M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter og M3 E-post er bygget.** Se
+statustabellen i `CLAUDE.md` for øvrige milepæler.
 
 - M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
 - M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
 - M2: dokumentopplasting (dra-og-slipp, også fra mobilkamera) på kunde-/leverandørkortet, med kategorisering, inline forhåndsvisning av PDF/bilder og versjonering av tegninger.
+- M3: egen worker-prosess synker e-postkontoer (IMAP IDLE + periodisk synk) og kobler automatisk
+  e-post til kunde/leverandør på tidslinjen; ukjente havner i en tilordningskø; vedlegg havner i
+  dokumentarkivet.
 
 ## Oppstart (utvikling)
 
@@ -24,6 +28,7 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 5. Seed grunndata (rettigheter, roller «Administrator»/«Selger», én admin-bruker): `npm run db:seed`.
 6. Start appen: `npm run dev` og åpne http://localhost:3000.
 7. Logg inn med e-posten/passordet skriptet skrev ut. Ved første innlogging vises en 2FA-nøkkel du legger inn i en autentiseringsapp (Apple Kodegenerator, Google Authenticator e.l.) – dette er obligatorisk (GE-04).
+8. For e-post (M3): start workeren i et eget terminalvindu med `npm run worker`. Uten den synkroniseres ingen e-post, og «Send»-knapper i e-postmoduler vil ikke fungere.
 
 ## Tester
 
@@ -74,3 +79,40 @@ den slettes aldri og forblir åpnebar.
 **Bevisst utsatt:** DO-06 (fulltekst-søk/OCR med Tesseract – BØR, egen indekseringsjobb), DO-07
 (dele dokument som e-postvedlegg – avhenger av e-postutsending i M3), DO-09 (DWG-visning i
 nettleser – KAN, kun etter avtale med eier).
+
+## M3: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene EP-01–07 (kap. 19). Egen worker-prosess (`src/worker`, `npm run worker`) synker
+hver aktive e-postkonto: IMAP IDLE i sanntid mot ekte kontoer, pluss periodisk synk hvert minutt som
+alltid kjører (reserve-mekanismen fra kap. 18, holder god margin til akseptansekriteriet «innen 2
+minutter»). E-post kobles automatisk til kunde/leverandør på eksakt adresse, så domene (ikke for
+gmail.com/hotmail.com e.l.) og vises på tidslinjen. Ukjente havner i tilordningskøen
+(`/email/unassigned`) for manuell kobling. Vedlegg lagres i dokumentarkivet (gjenbruker M2), og
+flyttes til riktig kunde/leverandør når en melding tilordnes manuelt. Samme e-post synkronisert to
+ganger gir én rad (unik per konto+mappe+IMAP-UID).
+
+E-postintegrasjonen (`src/integrations/mail`) ligger bak et grensesnitt med en mock-variant (brukt i
+alle automatiske tester) og en ekte variant (imapflow/nodemailer/mailparser mot IMAP/SMTP). Ekte
+tilkobling slås på med `MAIL_INTEGRATION_MODE=real` i workerens miljø – står til `mock` ellers, slik
+at ingen vanlig utvikling eller tester rører ekte postbokser (arbeidsregel 5).
+
+**Passord for e-postkontoer** krypteres i databasen (AES-256-GCM, `ENCRYPTION_KEY` i `.env`) siden
+ekte macOS-nøkkelring (DR-08) først bygges i M9. Du valgte ikke eksplisitt mellom dette og
+env-only-alternativet jeg foreslo – jeg gikk med det anbefalte (kryptert i database), siden det er
+tryggere og gir en avgrenset overgang til nøkkelring senere. Si ifra om du vil ha det annerledes.
+
+**Viktig – ikke verifisert mot ekte Domeneshop-server i denne økten:** denne
+utviklingsøkten kjører i en sandkasse som kun tillater utgående HTTPS-trafikk gjennom en
+policy-proxy; IMAP (993) og SMTP (465) er ikke tilgjengelig herfra, og forsøket på reell
+tilkobling til testkontoen din (`test@pietraunica.no`) fikk tidsavbrudd på TCP-nivå av den
+grunn. Alt av synk/kobling/tidslinje/dedup/sending er testet grundig mot mock-integrasjonen
+(13 e2e-tester, alle grønne), men selve nettverkskoden mot Domeneshop er ikke bekreftet i praksis.
+**Test selv:** sett `MAIL_INTEGRATION_MODE=real` i `.env`, kjør `npm run worker`, opprett
+testkontoen under «E-postkontoer» i grensesnittet (bruk verdiene fra `TEST_EMAIL_*` i `.env`), og
+se om e-post faktisk synkes. Si ifra om noe ikke fungerer, så retter jeg det.
+
+**Bevisst utsatt:** EP-08 (sende e-post med maler/flettefelt fra CRM – selve sending+arkivering i
+Sendt-mappen er bygget og testet i integrasjonslaget, men ingen skriv-e-post-side i grensesnittet
+ennå), EP-09 (trådvisning), EP-10 (manuell kobling via BCC til CRM, KAN – kun etter avtale). Det
+finnes heller ingen side for å lese hele e-postteksten ennå – tidslinjen viser at meldingen kom, med
+emne; full lesevisning kommer med EP-08/EP-09 i M8.

@@ -22,10 +22,11 @@ model User {
   updatedAt    DateTime @updatedAt
   createdById  String?
 
-  roles      UserRole[]
-  sessions   Session[]
-  auditLogs  AuditLog[] @relation("AuditLogUser")
-  tasks      Task[]
+  roles         UserRole[]
+  sessions      Session[]
+  auditLogs     AuditLog[]     @relation("AuditLogUser")
+  tasks         Task[]
+  emailAccounts EmailAccount[] @relation("EmailAccountOwner")
 
   @@map("users")
 }
@@ -38,8 +39,9 @@ model Role {
   updatedAt   DateTime @updatedAt
   createdById String?
 
-  users       UserRole[]
-  permissions RolePermission[]
+  users              UserRole[]
+  permissions        RolePermission[]
+  emailAccountAccess EmailAccountRole[]
 
   @@map("roles")
 }
@@ -331,6 +333,88 @@ enum DocumentCategory {
   INVOICE
   CONTRACT
   OTHER
+}
+
+// ---------------------------------------------------------------------------
+// M3 E-post (EP-01–07). Passordet er kryptert (src/lib/secrets.ts, AES-256-GCM)
+// med ENCRYPTION_KEY – ekte macOS-nøkkelring (DR-08) kommer i M9.
+//
+// EmailMessage er unik per (emailAccountId, folder, uid) – matcher hvordan
+// IMAP-UID-er brukes til å unngå duplikater ved resynkronisering (kap. 18).
+// Vedlegg lagres som Document med entityType="EmailMessage" inntil meldingen
+// er koblet til en kunde/leverandør, og «re-foreldres» da (EP-04/EP-05).
+// ---------------------------------------------------------------------------
+
+model EmailAccount {
+  id                String   @id @default(uuid())
+  address           String   @unique
+  username          String
+  encryptedPassword String
+  imapHost          String
+  imapPort          Int      @default(993)
+  smtpHost          String
+  smtpPort          Int      @default(465)
+  shared            Boolean  @default(false)
+  ownerUserId       String?
+  syncFromDate      DateTime @default(now())
+  // Siste synkede IMAP-UID per mappe, f.eks. {"INBOX": 123, "Sent": 45} (kap. 18).
+  lastSeenUid       Json     @default("{}")
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdById       String?
+
+  owner       User?              @relation("EmailAccountOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  accessRoles EmailAccountRole[]
+  messages    EmailMessage[]
+
+  @@map("email_accounts")
+}
+
+// EP-03: administrator styrer hvilke roller som har tilgang til hver felles postboks.
+model EmailAccountRole {
+  emailAccountId String
+  roleId         String
+
+  emailAccount EmailAccount @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([emailAccountId, roleId])
+  @@map("email_account_roles")
+}
+
+model EmailMessage {
+  id             String         @id @default(uuid())
+  emailAccountId String
+  folder         String
+  uid            Int
+  messageId      String?
+  inReplyTo      String?
+  direction      EmailDirection
+  fromAddress    String
+  fromName       String?
+  toAddresses    String[]
+  ccAddresses    String[]
+  subject        String?
+  textBody       String?
+  occurredAt     DateTime
+  entityType     String?
+  entityId       String?
+  handledById    String?
+  createdAt      DateTime       @default(now())
+
+  emailAccount EmailAccount @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([emailAccountId, folder, uid])
+  @@index([entityType, entityId])
+  @@index([messageId])
+  @@index([fromAddress])
+  @@map("email_messages")
+}
+
+enum EmailDirection {
+  IN
+  OUT
 }
 
 enum CustomerType {

@@ -14,6 +14,10 @@ export const TEST_DATABASE_URL =
 
 export const TEST_STORAGE_DIR = path.join(process.cwd(), 'data', 'documents-e2e');
 
+// M3: fast nøkkel kun for tester (aldri fra en utviklers ekte .env), slik at
+// testene fungerer uavhengig av hva ENCRYPTION_KEY er satt til lokalt.
+export const TEST_ENCRYPTION_KEY = '11'.repeat(32);
+
 export const E2E_ADMIN = {
   email: 'e2e-admin@pietraunica.test',
   password: 'e2e-admin-passord-123',
@@ -39,8 +43,11 @@ export default async function globalSetup(): Promise<void> {
   const prisma = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
 
   try {
-    // M1/M2-tabeller nullstilles også, slik at KU-12-testen ("tomt register")
+    // M1/M2/M3-tabeller nullstilles også, slik at KU-12-testen ("tomt register")
     // er pålitelig på tvers av kjøringer, ikke bare første gang.
+    await prisma.emailMessage.deleteMany();
+    await prisma.emailAccountRole.deleteMany();
+    await prisma.emailAccount.deleteMany();
     await prisma.document.deleteMany();
     await prisma.task.deleteMany();
     await prisma.activity.deleteMany();
@@ -66,6 +73,7 @@ export default async function globalSetup(): Promise<void> {
       'customer.write',
       'supplier.read',
       'supplier.write',
+      'email.accounts.manage',
     ];
     const permissions = await Promise.all(
       permissionKeys.map((key) => prisma.permission.create({ data: { key } })),

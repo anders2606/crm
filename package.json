@@ -19,16 +19,22 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:backup": "tsx scripts/backup.ts",
     "db:backup:silent": "tsx scripts/backup.ts || true",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "worker": "tsx src/worker/index.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
+    "imapflow": "^2.0.5",
+    "mailparser": "^3.9.28",
     "next": "^14.2.35",
+    "nodemailer": "^10.0.10",
+    "pg-boss": "^12.33.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.2",
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^20.16.10",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",

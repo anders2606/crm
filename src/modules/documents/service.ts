@@ -48,23 +48,27 @@ export function formatFileSize(bytes: number): string {
   return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
-export interface SaveDocumentUploadInput {
+export interface SaveDocumentBufferInput {
   entityType: string;
   entityId: string;
   category: DocumentCategory;
-  file: File;
+  fileName: string;
+  mimeType: string;
+  buffer: Buffer;
   /** Sett når opplastingen er en ny versjon av et eksisterende dokument (DO-04). */
   replacesDocumentId?: string | null;
   userId: string | null;
 }
 
-export async function saveDocumentUpload(input: SaveDocumentUploadInput): Promise<Document> {
-  const buffer = Buffer.from(await input.file.arrayBuffer());
-  const storageKey = `${input.entityType}/${input.entityId}/${randomUUID()}${path.extname(input.file.name)}`;
-  await getStorage().put(storageKey, buffer);
-
-  const mimeType = input.file.type || 'application/octet-stream';
-  const sizeBytes = buffer.byteLength;
+/**
+ * Kjernen i dokumentlagring: brukes både av skjemaopplasting (File-objekt,
+ * se saveDocumentUpload) og av e-postvedlegg fra workeren (Buffer direkte,
+ * se src/modules/email – EP-04).
+ */
+export async function saveDocumentBuffer(input: SaveDocumentBufferInput): Promise<Document> {
+  const storageKey = `${input.entityType}/${input.entityId}/${randomUUID()}${path.extname(input.fileName)}`;
+  await getStorage().put(storageKey, input.buffer);
+  const sizeBytes = input.buffer.byteLength;
 
   if (input.replacesDocumentId) {
     const previous = await prisma.document.findUniqueOrThrow({
@@ -78,8 +82,8 @@ export async function saveDocumentUpload(input: SaveDocumentUploadInput): Promis
           groupId: previous.groupId,
           version: previous.version + 1,
           isCurrent: true,
-          fileName: input.file.name,
-          mimeType,
+          fileName: input.fileName,
+          mimeType: input.mimeType,
           sizeBytes,
           category: previous.category,
           storageKey,
@@ -100,8 +104,8 @@ export async function saveDocumentUpload(input: SaveDocumentUploadInput): Promis
       groupId: id,
       version: 1,
       isCurrent: true,
-      fileName: input.file.name,
-      mimeType,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
       sizeBytes,
       category: input.category,
       storageKey,
@@ -109,6 +113,43 @@ export async function saveDocumentUpload(input: SaveDocumentUploadInput): Promis
       entityId: input.entityId,
       createdById: input.userId,
     },
+  });
+}
+
+export interface SaveDocumentUploadInput {
+  entityType: string;
+  entityId: string;
+  category: DocumentCategory;
+  file: File;
+  /** Sett når opplastingen er en ny versjon av et eksisterende dokument (DO-04). */
+  replacesDocumentId?: string | null;
+  userId: string | null;
+}
+
+export async function saveDocumentUpload(input: SaveDocumentUploadInput): Promise<Document> {
+  const buffer = Buffer.from(await input.file.arrayBuffer());
+  return saveDocumentBuffer({
+    entityType: input.entityType,
+    entityId: input.entityId,
+    category: input.category,
+    fileName: input.file.name,
+    mimeType: input.file.type || 'application/octet-stream',
+    buffer,
+    replacesDocumentId: input.replacesDocumentId,
+    userId: input.userId,
+  });
+}
+
+/** EP-04/EP-05: flytter dokumenter (typisk e-postvedlegg) til riktig entitet når en melding tilordnes i etterkant. */
+export async function reparentDocuments(
+  fromEntityType: string,
+  fromEntityId: string,
+  toEntityType: string,
+  toEntityId: string,
+): Promise<void> {
+  await prisma.document.updateMany({
+    where: { entityType: fromEntityType, entityId: fromEntityId },
+    data: { entityType: toEntityType, entityId: toEntityId },
   });
 }
 

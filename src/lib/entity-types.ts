@@ -5,6 +5,7 @@ export const ENTITY_TYPES = {
   SUPPLIER: 'Supplier',
   ROLE: 'Role',
   USER: 'User',
+  EMAIL_MESSAGE: 'EmailMessage',
 } as const;
 
 export type EntityType = (typeof ENTITY_TYPES)[keyof typeof ENTITY_TYPES];
