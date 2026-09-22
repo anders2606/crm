@@ -31,3 +31,14 @@ export function parseMoneyToCents(input: string): number | null {
 
   return Math.round(value * 100);
 }
+
+/**
+ * MA-03: regner om et beløp i en fremmed valutas minste enhet (f.eks.
+ * EUR-cent) til NOK-øre, gitt en kurs skalert som «NOK × 1 000 000 per 1
+ * enhet» (se ExchangeRate.microNokPerUnit). Alt regnestykket er heltall
+ * fram til siste avrunding, aldri flyttall lagret (arbeidsregel 10).
+ */
+export function convertMinorUnitsToNokOre(amountMinorUnits: number, microNokPerUnit: number): number {
+  return Math.round((amountMinorUnits * microNokPerUnit) / 1_000_000);
+}
+

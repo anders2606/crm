@@ -20,7 +20,7 @@ export default async function SearchPage({
 
   const query = typeof searchParams.q === 'string' ? searchParams.q.trim() : '';
 
-  const [customers, suppliers] = await Promise.all([
+  const [customers, suppliers, materials] = await Promise.all([
     query && hasPermission(session, PERMISSIONS.CUSTOMER_READ)
       ? prisma.customer.findMany({
           where: {
@@ -43,6 +43,21 @@ export default async function SearchPage({
               { name: { contains: query, mode: 'insensitive' } },
               { email: { contains: query, mode: 'insensitive' } },
               { country: { contains: query, mode: 'insensitive' } },
+            ],
+          },
+          take: 20,
+          orderBy: { name: 'asc' },
+        })
+      : Promise.resolve([]),
+    query && hasPermission(session, PERMISSIONS.MATERIAL_READ)
+      ? prisma.material.findMany({
+          where: {
+            deletedAt: null,
+            OR: [
+              { name: { contains: query, mode: 'insensitive' } },
+              { tradeName: { contains: query, mode: 'insensitive' } },
+              { origin: { contains: query, mode: 'insensitive' } },
+              { color: { contains: query, mode: 'insensitive' } },
             ],
           },
           take: 20,
@@ -105,6 +120,25 @@ export default async function SearchPage({
                     </Link>
                     {` – ${supplier.country}`}
                     {supplier.email ? ` – ${supplier.email}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-2 font-medium">Materialer ({materials.length})</h2>
+            {materials.length === 0 ? (
+              <p className="text-sm text-slate-600">Ingen treff.</p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {materials.map((material) => (
+                  <li key={material.id}>
+                    <Link href={`/materials/${material.id}`} className="underline">
+                      {material.name}
+                    </Link>
+                    {material.origin ? ` – ${material.origin}` : ''}
+                    {material.color ? ` – ${material.color}` : ''}
                   </li>
                 ))}
               </ul>

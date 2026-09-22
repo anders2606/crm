@@ -11,6 +11,8 @@ export const PERMISSIONS = {
   SUPPLIER_READ: 'supplier.read',
   SUPPLIER_WRITE: 'supplier.write',
   EMAIL_ACCOUNTS_MANAGE: 'email.accounts.manage',
+  MATERIAL_READ: 'material.read',
+  MATERIAL_WRITE: 'material.write',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS] | (string & {});

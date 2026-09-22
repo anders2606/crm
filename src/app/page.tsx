@@ -63,6 +63,11 @@ export default async function DashboardPage() {
             Leverandører
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.MATERIAL_READ) && (
+          <Link href="/materials" className="underline">
+            Materialbibliotek
+          </Link>
+        )}
         <Link href="/email/unassigned" className="underline">
           Tilordningskø (e-post)
         </Link>

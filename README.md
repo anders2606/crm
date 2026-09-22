@@ -4,8 +4,8 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 
 ## Status
 
-**M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter og M3 E-post er bygget.** Se
-statustabellen i `CLAUDE.md` for øvrige milepæler.
+**M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter, M3 E-post og M4 Materialbibliotek er
+bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
 
 - M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
 - M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
@@ -13,6 +13,8 @@ statustabellen i `CLAUDE.md` for øvrige milepæler.
 - M3: egen worker-prosess synker e-postkontoer (IMAP IDLE + periodisk synk) og kobler automatisk
   e-post til kunde/leverandør på tidslinjen; ukjente havner i en tilordningskø; vedlegg havner i
   dokumentarkivet.
+- M4: materialbibliotek med bilder, leverandørkobling, historiske innkjøps-/utsalgspriser (omregnet
+  til NOK med daglige Norges Bank-kurser hentet av workeren) og en enkel prisgraf.
 
 ## Oppstart (utvikling)
 
@@ -28,7 +30,7 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 5. Seed grunndata (rettigheter, roller «Administrator»/«Selger», én admin-bruker): `npm run db:seed`.
 6. Start appen: `npm run dev` og åpne http://localhost:3000.
 7. Logg inn med e-posten/passordet skriptet skrev ut. Ved første innlogging vises en 2FA-nøkkel du legger inn i en autentiseringsapp (Apple Kodegenerator, Google Authenticator e.l.) – dette er obligatorisk (GE-04).
-8. For e-post (M3): start workeren i et eget terminalvindu med `npm run worker`. Uten den synkroniseres ingen e-post, og «Send»-knapper i e-postmoduler vil ikke fungere.
+8. For e-post (M3) og valutakurser (M4): start workeren i et eget terminalvindu med `npm run worker`. Uten den synkroniseres verken e-post eller valutakurser.
 
 ## Tester
 
@@ -116,3 +118,31 @@ Sendt-mappen er bygget og testet i integrasjonslaget, men ingen skriv-e-post-sid
 ennå), EP-09 (trådvisning), EP-10 (manuell kobling via BCC til CRM, KAN – kun etter avtale). Det
 finnes heller ingen side for å lese hele e-postteksten ennå – tidslinjen viser at meldingen kom, med
 emne; full lesevisning kommer med EP-08/EP-09 i M8.
+
+## M4: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene MA-01–04, MA-06 og MA-08 (kap. 19). Bilder (MA-02) gjenbruker `Document` fra M2.
+Prisgrafen (MA-04) er en enkel, håndtegnet SVG-linje uten nytt diagrambibliotek.
+
+**Valutakurser (MA-03):** workeren henter daglige kurser fra Norges Banks åpne API hver morgen
+kl. 06 (og backfiller ca. 2 år tilbake ved oppstart for valutaer i bruk), lagrer dem lokalt, og
+prisregistrering slår opp kursen for datoen – med fallback til siste kjente kurs ved helg/helligdag
+(kap. 18). Denne HTTP-integrasjonen (`src/integrations/exchange-rates`) følger samme
+mock/ekte-mønster som e-post: mock i alle tester, ekte kun fra workeren
+(`EXCHANGE_RATE_INTEGRATION_MODE=real`).
+
+**Viktig – heller ikke denne integrasjonen er verifisert mot den ekte tjenesten:** i motsetning
+til IMAP/SMTP er Norges Banks API vanlig HTTPS, så jeg forsøkte å teste den live i denne økten –
+men det viste seg at utviklingsøkten kun tillater utgående HTTPS til et fast allowlist av verter
+(npm, PyPI o.l.), og data.norges-bank.no er ikke blant dem (samme `curl` fikk 403 mot f.eks.
+google.com også). CSV-tolkingen i `src/integrations/exchange-rates/real.ts` er skrevet etter beste
+kjennskap til Norges Banks dokumenterte format (kolonnenavnene `TIME_PERIOD`/`OBS_VALUE` er faste
+SDMX-navn), men er ikke kjørt mot den ekte tjenesten. **Test selv:** sett
+`EXCHANGE_RATE_INTEGRATION_MODE=real` i `.env`, kjør `npm run worker`, og se i loggen om kurser
+faktisk hentes inn (`npx prisma studio` kan brukes til å se `exchange_rates`-tabellen). Si ifra om
+noe ikke stemmer.
+
+**Bevisst utsatt:** MA-05 (automatisk oppdatering av innkjøpspriser fra leverandørfakturaer/tilbud –
+avhenger av M5/M7), MA-07 (tekstblokk-integrasjon for vedlikeholdsråd – fritekstfelt er på plass,
+selve tekstblokk-systemet kommer med SD-02 i M5), MA-09/MA-10 (lagerstatus og publisering til
+marmor.no, KAN – kun etter avtale med deg).

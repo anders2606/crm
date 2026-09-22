@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatMoney, parseMoneyToCents } from '@/lib/money';
+import { convertMinorUnitsToNokOre, formatMoney, parseMoneyToCents } from '@/lib/money';
 
 describe('penger som heltall i øre (arbeidsregel 10)', () => {
   it('formaterer øre til norsk tallformat med valutakode', () => {
@@ -22,5 +22,17 @@ describe('penger som heltall i øre (arbeidsregel 10)', () => {
 
   it('rundes til nærmeste øre for å unngå flyttallsfeil', () => {
     expect(parseMoneyToCents('10.005')).toBe(1001); // 1000.5 -> avrundes opp
+  });
+
+  it('regner om fremmed valuta til NOK-øre med skalert heltallskurs (MA-03)', () => {
+    // 100,00 EUR (10 000 cent) med kurs 11,5000 NOK/EUR -> 1 150,00 NOK.
+    expect(convertMinorUnitsToNokOre(10_000, 11_500_000)).toBe(115_000);
+  });
+
+  it('avrunder til nærmeste øre ved valutaomregning', () => {
+    // 1 cent (0,01 EUR) med kurs 11,5555 NOK/EUR -> 0,115555 NOK = 11,5555 øre -> avrundes til 12.
+    expect(convertMinorUnitsToNokOre(1, 11_555_500)).toBe(12);
+    // 1 cent med en mye lavere kurs avrundes ned til 0 øre.
+    expect(convertMinorUnitsToNokOre(1, 30_000)).toBe(0);
   });
 });

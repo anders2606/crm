@@ -43,8 +43,12 @@ export default async function globalSetup(): Promise<void> {
   const prisma = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
 
   try {
-    // M1/M2/M3-tabeller nullstilles også, slik at KU-12-testen ("tomt register")
-    // er pålitelig på tvers av kjøringer, ikke bare første gang.
+    // M1/M2/M3/M4-tabeller nullstilles også, slik at KU-12-testen ("tomt
+    // register") er pålitelig på tvers av kjøringer, ikke bare første gang.
+    await prisma.priceEntry.deleteMany();
+    await prisma.materialSupplier.deleteMany();
+    await prisma.material.deleteMany();
+    await prisma.exchangeRate.deleteMany();
     await prisma.emailMessage.deleteMany();
     await prisma.emailAccountRole.deleteMany();
     await prisma.emailAccount.deleteMany();
@@ -74,6 +78,8 @@ export default async function globalSetup(): Promise<void> {
       'supplier.read',
       'supplier.write',
       'email.accounts.manage',
+      'material.read',
+      'material.write',
     ];
     const permissions = await Promise.all(
       permissionKeys.map((key) => prisma.permission.create({ data: { key } })),
@@ -91,7 +97,12 @@ export default async function globalSetup(): Promise<void> {
         name: 'Selger',
         permissions: {
           create: permissions
-            .filter((permission) => permission.key.startsWith('customer.') || permission.key === 'supplier.read')
+            .filter(
+              (permission) =>
+                permission.key.startsWith('customer.') ||
+                permission.key.startsWith('material.') ||
+                permission.key === 'supplier.read',
+            )
             .map((permission) => ({ permissionId: permission.id })),
         },
       },
