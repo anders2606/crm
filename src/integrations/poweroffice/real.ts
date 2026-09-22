@@ -21,6 +21,7 @@ import type {
   PowerOfficeCredentials,
   PowerOfficeCustomerBalance,
   PowerOfficeCustomerInput,
+  PowerOfficeIncomingInvoice,
   PowerOfficeOpenItem,
   PowerOfficeSalesOrderInput,
   PowerOfficeSupplierInput,
@@ -249,6 +250,19 @@ interface RawCustomerLedgerEntry {
   InvoiceNo: string | null;
 }
 
+interface RawIncomingInvoice {
+  Id: string;
+  InvoiceNo: string | null;
+  TotalAmount: number;
+  Balance: number;
+  DueDate: string | null;
+}
+
+// Grenser hvor langt tilbake bilagsstatus hentes (samme mønster som
+// valutakurs-backfill, src/worker/index.ts) – unngår å hente hele
+// leverandørens fakturahistorikk hver gang.
+const INCOMING_INVOICE_HISTORY_YEARS = 2;
+
 export function createRealPowerOfficeClient(credentials: PowerOfficeCredentials): PowerOfficeClient {
   return {
     async findCustomerByOrgNrOrEmail(orgNr, email) {
@@ -375,6 +389,24 @@ export function createRealPowerOfficeClient(credentials: PowerOfficeCredentials)
         body,
       })) as { Id: number };
       return String(created.Id);
+    },
+
+    async listIncomingInvoicesForSupplier(powerOfficeId) {
+      const fromDate = new Date();
+      fromDate.setFullYear(fromDate.getFullYear() - INCOMING_INVOICE_HISTORY_YEARS);
+
+      const invoices = (await requestJson(credentials, '/IncomingInvoices', {
+        method: 'GET',
+        query: { supplierNos: powerOfficeId, fromDate: fromDate.toISOString().slice(0, 10) },
+      })) as RawIncomingInvoice[];
+
+      return invoices.map((invoice) => ({
+        powerOfficeId: invoice.Id,
+        invoiceNo: invoice.InvoiceNo,
+        totalAmountMinor: decimalToMinor(invoice.TotalAmount),
+        balanceMinor: decimalToMinor(invoice.Balance),
+        dueDate: invoice.DueDate,
+      }));
     },
   };
 }

@@ -14,6 +14,7 @@ import {
   listDocumentGroupsForEntity,
 } from '@/modules/documents/service';
 import { getAccessibleEmailAccounts } from '@/modules/email/access';
+import { INVOICE_PAYMENT_STATUS_LABELS } from '@/modules/poweroffice/payment-status';
 
 import {
   addActivity,
@@ -46,6 +47,10 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = {
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+}
+
+function formatDateOnly(date: Date): string {
+  return new Intl.DateTimeFormat('nb-NO', { dateStyle: 'short' }).format(date);
 }
 
 export default async function SupplierDetailPage({
@@ -84,7 +89,7 @@ export default async function SupplierDetailPage({
     notFound();
   }
 
-  const [activities, openTasks, users, documentGroups, emailAccounts] = await Promise.all([
+  const [activities, openTasks, users, documentGroups, emailAccounts, invoiceStatuses] = await Promise.all([
     listActivities(ENTITY_TYPES.SUPPLIER, supplier.id),
     prisma.task.findMany({
       where: { entityType: ENTITY_TYPES.SUPPLIER, entityId: supplier.id, status: 'OPEN' },
@@ -93,6 +98,7 @@ export default async function SupplierDetailPage({
     prisma.user.findMany({ select: { id: true, name: true } }),
     listDocumentGroupsForEntity(ENTITY_TYPES.SUPPLIER, supplier.id),
     getAccessibleEmailAccounts(session.id),
+    prisma.supplierInvoiceStatus.findMany({ where: { supplierId: supplier.id }, orderBy: { dueDate: 'asc' } }),
   ]);
 
   const userNameById = new Map(users.map((user) => [user.id, user.name]));
@@ -423,6 +429,52 @@ export default async function SupplierDetailPage({
               Last opp og send til PowerOffice
             </button>
           </form>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-2 font-medium">Bilag og betalingsstatus (BI-02, BI-03)</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Hentet fra PowerOffice sine inngående fakturaer for denne leverandøren – oppdateres minst
+          hver time (IN-22). CRM tolker aldri selv om en faktura er betalt, kun PowerOffice sitt
+          eget tall. Bilagene selv oppbevares bokføringspliktig i PowerOffice (BI-06), og
+          attestering/godkjenning før betaling skjer der, ikke i CRM (BI-07).
+        </p>
+        {invoiceStatuses.length === 0 ? (
+          <p className="text-sm text-slate-600">Ingen bilag registrert i PowerOffice for denne leverandøren ennå.</p>
+        ) : (
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-500">
+                <th className="py-2">Fakturanr.</th>
+                <th className="py-2">Beløp</th>
+                <th className="py-2">Forfall</th>
+                <th className="py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoiceStatuses.map((invoice) => (
+                <tr key={invoice.id} className="border-b border-slate-100">
+                  <td className="py-2">{invoice.invoiceNo ?? '–'}</td>
+                  <td className="py-2">{formatMoney(invoice.totalAmountMinor, supplier.currency)}</td>
+                  <td className="py-2">{invoice.dueDate ? formatDateOnly(invoice.dueDate) : '–'}</td>
+                  <td className="py-2">
+                    <span
+                      className={
+                        invoice.status === 'PAID'
+                          ? 'text-emerald-700'
+                          : invoice.status === 'PARTIALLY_PAID'
+                            ? 'text-amber-700'
+                            : 'text-slate-700'
+                      }
+                    >
+                      {INVOICE_PAYMENT_STATUS_LABELS[invoice.status]}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </section>
 

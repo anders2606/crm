@@ -72,6 +72,17 @@ export interface PowerOfficeSalesOrderInput {
   lines: PowerOfficeSalesOrderLine[];
 }
 
+// BI-02/03: én inngående faktura for en leverandør, med PowerOffice sin
+// egen beregnede status (balanseløs = betalt) – CRM tolker aldri selv om en
+// faktura er betalt.
+export interface PowerOfficeIncomingInvoice {
+  powerOfficeId: string;
+  invoiceNo: string | null;
+  totalAmountMinor: number;
+  balanceMinor: number;
+  dueDate: string | null;
+}
+
 export interface PowerOfficeClient {
   /** IN-01/KU-08: finner eksisterende post på org.nr først, så e-post. */
   findCustomerByOrgNrOrEmail(orgNr: string | null, email: string | null): Promise<PowerOfficeContactMatch | null>;
@@ -89,4 +100,7 @@ export interface PowerOfficeClient {
 
   /** IN-02: overfører et ordre-/fakturagrunnlag, returnerer PowerOffice-id. */
   createSalesOrder(input: PowerOfficeSalesOrderInput): Promise<string>;
+
+  /** BI-02/03: inngående fakturaer registrert på én leverandør. */
+  listIncomingInvoicesForSupplier(powerOfficeId: string): Promise<PowerOfficeIncomingInvoice[]>;
 }
