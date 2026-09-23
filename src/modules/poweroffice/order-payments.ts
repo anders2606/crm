@@ -31,6 +31,10 @@ export async function syncOrderPaymentStatuses(): Promise<number> {
       }
 
       const status = computeInvoicePaymentStatus(invoice.balanceMinor, invoice.totalAmountMinor);
+      const receivedFirstPayment =
+        (order.paymentStatus === null || order.paymentStatus === 'UNPAID') &&
+        (status === 'PARTIALLY_PAID' || status === 'PAID');
+
       await prisma.order.update({
         where: { id: order.id },
         data: {
@@ -40,6 +44,20 @@ export async function syncOrderPaymentStatuses(): Promise<number> {
         },
       });
       synced += 1;
+
+      // IN-13 (BØR): varsler selger om mottatt forskudd/innbetaling på en
+      // ordre som ennå ikke er satt i produksjon, slik at den kan startes.
+      if (receivedFirstPayment && order.status === 'CONFIRMED' && order.createdById) {
+        await prisma.task.create({
+          data: {
+            title: `Betaling mottatt på ordre ${order.number} – kan settes i produksjon`,
+            assigneeId: order.createdById,
+            entityType: ENTITY_TYPES.ORDER,
+            entityId: order.id,
+            createdById: null,
+          },
+        });
+      }
     } catch (error) {
       await recordSyncLog({
         direction: 'in',
