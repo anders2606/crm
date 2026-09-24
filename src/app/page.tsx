@@ -106,6 +106,11 @@ export default async function DashboardPage() {
             Utsendelser
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.REPORTS_READ) && (
+          <Link href="/admin/reports" className="underline">
+            Rapporter
+          </Link>
+        )}
         <Link href="/governing-documents" className="underline">
           Planer og styrende dokumenter
         </Link>
