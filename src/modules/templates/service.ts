@@ -27,6 +27,8 @@ export interface CreateTemplateVersionInput {
   name: string;
   language: string;
   customerGroupId?: string | null;
+  /** GR-04: emne for e-post/nyhetsbrevmaler. Ubrukt for TILBUD/ORDERBEKREFTELSE. */
+  subject?: string | null;
   content: string;
   status: TemplateStatus;
   comment?: string | null;
@@ -47,6 +49,7 @@ export async function createTemplateVersion(input: CreateTemplateVersionInput): 
           name: input.name,
           language: input.language,
           customerGroupId: input.customerGroupId ?? null,
+          subject: input.subject ?? null,
           content: input.content,
           status: input.status,
           comment: input.comment ?? null,
@@ -68,6 +71,7 @@ export async function createTemplateVersion(input: CreateTemplateVersionInput): 
       name: input.name,
       language: input.language,
       customerGroupId: input.customerGroupId ?? null,
+      subject: input.subject ?? null,
       content: input.content,
       status: input.status,
       comment: input.comment ?? null,

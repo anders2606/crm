@@ -39,6 +39,6 @@ Eier er ikke utvikler. Forklar valg og kommandoer kort og på norsk, og si tydel
 | M5 Tilbud og ordre | Bygget (se README for detaljer og bevisst utsatte BØR-punkter) |
 | M6 PowerOffice | Bygget – NB: PowerOffice sin produksjons-URL og ekte demo-tilkobling ikke verifisert av Claude (samme nettverksbegrensning som M3/M4), se README |
 | M7 Bilag og betalinger | Bygget (se README for detaljer og bevisst utsatte BØR/KAN-punkter) |
-| M8 Utsendelser og rapporter | Ikke startet |
+| M8 Utsendelser og rapporter | Pågår – datamodell, malsystem/kampanjebygging og utsendelse via worker bygget (GR-01, GR-02, GR-04, GR-05, GR-07), resten gjenstår |
 | M9 Serverpakke (DMG) | Ikke startet |
 | M10 KI-modul (valgfri) | Ikke startet |

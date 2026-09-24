@@ -385,11 +385,10 @@ model EmailAccount {
   updatedAt         DateTime @updatedAt
   createdById       String?
 
-  owner            User?              @relation("EmailAccountOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  accessRoles      EmailAccountRole[]
-  messages         EmailMessage[]
-  campaigns        EmailCampaign[]
-  campaignSettings CampaignSettings[]
+  owner       User?              @relation("EmailAccountOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  accessRoles EmailAccountRole[]
+  messages    EmailMessage[]
+  campaigns   EmailCampaign[]
 
   @@map("email_accounts")
 }
@@ -604,6 +603,9 @@ model Template {
   name            String
   language        String         @default("nb")
   customerGroupId String?
+  // GR-04: emne for nyhetsbrev/e-postmaler. Ubrukt for TO-02/TO-09-malene
+  // (TILBUD/ORDER_CONFIRMATION), som har fast emnetekst satt av avsenderkoden.
+  subject         String?
   content         String
   status          TemplateStatus @default(DRAFT)
   comment         String? // SD-03: kommentar til denne versjonen
@@ -947,17 +949,14 @@ model BankTransaction {
 // databasen, med status QUEUED, og workeren behandler den.
 // ---------------------------------------------------------------------------
 
-// GR-07: fartsgrense og avsenderkonto er globale (samme SMTP-konto/-grense
-// brukes uansett hvilken kampanje som sendes), administrert ett sted i
-// stedet for per kampanje.
+// GR-07: fartsgrensen er global (teller sendte e-poster på tvers av alle
+// kampanjer den siste timen), uansett hvilken avsenderkonto den enkelte
+// kampanjen bruker (satt per kampanje, EmailCampaign.emailAccountId).
 model CampaignSettings {
   id              String   @id @default("singleton")
-  emailAccountId  String?
   hourlyRateLimit Int      @default(50)
   updatedAt       DateTime @updatedAt
   updatedById     String?
-
-  emailAccount EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
 
   @@map("campaign_settings")
 }

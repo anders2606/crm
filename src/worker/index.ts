@@ -26,6 +26,7 @@ import {
   type QuoteSendJobData,
 } from '@/lib/jobs';
 import { decryptSecret } from '@/lib/secrets';
+import { processCampaignSendingQueue } from '@/modules/campaigns/send';
 import { syncAccountFolder } from '@/modules/email/sync';
 import { syncExchangeRates } from '@/modules/exchange-rates/service';
 import { syncAllCustomerBalances } from '@/modules/poweroffice/balances';
@@ -50,6 +51,9 @@ const POWEROFFICE_BALANCE_QUEUE = 'poweroffice-balance-sync';
 const POWEROFFICE_SUPPLIER_INVOICE_QUEUE = 'poweroffice-supplier-invoice-sync';
 // IN-10/11/12: synk minst hver time (IN-22).
 const POWEROFFICE_ORDER_PAYMENT_QUEUE = 'poweroffice-order-payment-sync';
+// GR-05/GR-07: sjekkes hvert minutt, slik at planlagte kampanjer sendes ut
+// nær det angitte tidspunktet og fartsgrensen håndheves løpende gjennom timen.
+const CAMPAIGN_SENDING_QUEUE = 'campaign-sending';
 // Sikrer at NOK/EUR/USD (kap. 3: "NOK, EUR, USD m.fl.") alltid har kurser
 // tilgjengelig, selv før første leverandør er registrert med en annen valuta.
 const BASELINE_CURRENCIES = ['EUR', 'USD'];
@@ -176,6 +180,7 @@ async function main(): Promise<void> {
   await boss.createQueue(POWEROFFICE_INVOICE_QUEUE);
   await boss.createQueue(POWEROFFICE_SUPPLIER_INVOICE_QUEUE);
   await boss.createQueue(POWEROFFICE_ORDER_PAYMENT_QUEUE);
+  await boss.createQueue(CAMPAIGN_SENDING_QUEUE);
 
   await boss.work(SYNC_QUEUE, async () => {
     await syncAllAccounts();
@@ -231,6 +236,13 @@ async function main(): Promise<void> {
       console.log(`[worker] PowerOffice-betalingsstatus: ${synced} ordre(r) oppdatert`);
     }
   });
+  // GR-05/GR-07: eneste sted SMTP-kallet for kampanje-e-post skjer.
+  await boss.work(CAMPAIGN_SENDING_QUEUE, async () => {
+    const attempted = await processCampaignSendingQueue();
+    if (attempted > 0) {
+      console.log(`[worker] Kampanjeutsendelse: ${attempted} e-post(er) forsøkt sendt`);
+    }
+  });
 
   // Minuttoppløsning er nok til å holde M3s 2-minutters akseptansekriterium
   // med god margin, og krever ingen ekstra avhengighet utover pg-boss.
@@ -243,8 +255,10 @@ async function main(): Promise<void> {
   await boss.schedule(POWEROFFICE_BALANCE_QUEUE, '0 * * * *', null, { tz: 'Europe/Oslo' });
   await boss.schedule(POWEROFFICE_SUPPLIER_INVOICE_QUEUE, '0 * * * *', null, { tz: 'Europe/Oslo' });
   await boss.schedule(POWEROFFICE_ORDER_PAYMENT_QUEUE, '0 * * * *', null, { tz: 'Europe/Oslo' });
+  // GR-05: planlagte kampanjer skal sendes nær angitt tidspunkt – minuttoppløsning.
+  await boss.schedule(CAMPAIGN_SENDING_QUEUE, '* * * * *', null, { tz: 'Europe/Oslo' });
 
-  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06, tilbudsoppfølging daglig kl. 07, PowerOffice-reskontro/leverandørbilag/betalingsstatus hver time.');
+  console.log('[worker] Startet. Periodisk e-postsynk hvert minutt, valutakurssynk daglig kl. 06, tilbudsoppfølging daglig kl. 07, PowerOffice-reskontro/leverandørbilag/betalingsstatus hver time, kampanjeutsendelse hvert minutt.');
 
   // DR-04: hent inn det som er gått glipp av umiddelbart ved oppstart,
   // ikke vent på første planlagte kjøring.
@@ -254,6 +268,7 @@ async function main(): Promise<void> {
   await syncAllCustomerBalances();
   await syncSupplierInvoiceStatuses();
   await syncOrderPaymentStatuses();
+  await processCampaignSendingQueue();
   await startIdleWatchers();
 
   const shutdown = async () => {
