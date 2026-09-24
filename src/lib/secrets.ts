@@ -1,6 +1,10 @@
-// M3: kryptering av e-postkontopassord i databasen (AES-256-GCM via Node sin
-// innebygde crypto, ingen ny avhengighet). Dette er en midlertidig løsning
-// fram til DR-08 fullføres med ekte macOS-nøkkelring i M9 – se README.
+// M3: kryptering av PowerOffice-nøkler og e-postkontopassord i databasen
+// (AES-256-GCM via Node sin innebygde crypto, ingen ny avhengighet).
+// ENCRYPTION_KEY kommer fra `.env` i utvikling (arbeidsregel 6), og fra
+// macOS-nøkkelringen i lokal modus/servermodus (DR-08, M9 –
+// electron/src/services/masterKey.ts genererer/henter den og gir den videre
+// som miljøvariabel til web-serveren og workeren). Denne modulen trenger
+// derfor ikke vite hvilken modus den kjører i.
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 const ALGORITHM = 'aes-256-gcm';

@@ -9,6 +9,7 @@ import { app, dialog } from 'electron';
 
 import { readConfig, writeConfig } from './config';
 import { runBackupNow } from './services/backup';
+import { getOrCreateMasterKey } from './services/masterKey';
 import { runPendingMigrations } from './services/migrate';
 import { buildDatabaseUrl, ensureDatabaseExists, isPostgresBundled, startPostgres, stopPostgres } from './services/postgres';
 import { startWebServer, stopWebServer } from './services/webServer';
@@ -52,7 +53,11 @@ async function startServices(): Promise<void> {
   }
   runPendingMigrations(databaseUrl);
 
-  const sharedEnv = { DATABASE_URL: databaseUrl, NODE_ENV: 'production' };
+  // DR-08: masternøkkelen som beskytter PowerOffice-/e-postkonto-
+  // hemmelighetene i databasen hentes fra macOS-nøkkelringen, ikke .env.
+  const encryptionKey = await getOrCreateMasterKey();
+
+  const sharedEnv = { DATABASE_URL: databaseUrl, ENCRYPTION_KEY: encryptionKey, NODE_ENV: 'production' };
   startWebServer(sharedEnv, currentPort);
   startWorker(sharedEnv);
 
