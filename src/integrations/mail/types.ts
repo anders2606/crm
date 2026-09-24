@@ -37,6 +37,8 @@ export interface OutgoingMessage {
   subject: string;
   text: string;
   attachments?: MailAttachment[];
+  /** GR-03: brukes til List-Unsubscribe-header på kampanje-e-post. */
+  headers?: Record<string, string>;
 }
 
 export interface MailClient {

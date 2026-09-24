@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { logAudit } from '@/lib/audit/log';
+import { prisma } from '@/lib/db';
 import { PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 import { createCampaign, queueCampaignForSending } from '@/modules/campaigns/service';
 
@@ -79,4 +80,30 @@ export async function queueCampaignAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath(`/admin/campaigns/${campaignId}`);
+}
+
+// GR-07: konfigurerbar fartsgrense per time, felles for alle kampanjer.
+export async function updateCampaignSettingsAction(formData: FormData): Promise<void> {
+  const session = await requirePermission(PERMISSIONS.CAMPAIGN_MANAGE);
+  const hourlyRateLimit = Number(formData.get('hourlyRateLimit'));
+
+  if (!Number.isFinite(hourlyRateLimit) || hourlyRateLimit < 1) {
+    redirect('/admin/campaigns?error=invalid_rate_limit');
+  }
+
+  await prisma.campaignSettings.upsert({
+    where: { id: 'singleton' },
+    create: { id: 'singleton', hourlyRateLimit, updatedById: session.id },
+    update: { hourlyRateLimit, updatedById: session.id },
+  });
+
+  await logAudit({
+    userId: session.id,
+    action: 'update',
+    entityType: 'CampaignSettings',
+    entityId: 'singleton',
+    after: { hourlyRateLimit },
+  });
+
+  revalidatePath('/admin/campaigns');
 }

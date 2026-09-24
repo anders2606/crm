@@ -5,7 +5,17 @@ import { prisma } from '@/lib/db';
 import { AuthenticationRequiredError, PermissionDeniedError, PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
 import { EMAIL_CAMPAIGN_STATUS_LABELS } from '@/modules/campaigns/service';
 
-export default async function CampaignsPage() {
+import { updateCampaignSettingsAction } from './actions';
+
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_rate_limit: 'Fartsgrense må være et helt tall på minst 1.',
+};
+
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   try {
     await requirePermission(PERMISSIONS.CAMPAIGN_MANAGE);
   } catch (error) {
@@ -22,10 +32,14 @@ export default async function CampaignsPage() {
     throw error;
   }
 
-  const campaigns = await prisma.emailCampaign.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { _count: { select: { recipients: true } } },
-  });
+  const [campaigns, settings] = await Promise.all([
+    prisma.emailCampaign.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { recipients: true } } },
+    }),
+    prisma.campaignSettings.findUnique({ where: { id: 'singleton' } }),
+  ]);
+  const error = typeof searchParams.error === 'string' ? searchParams.error : null;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
@@ -41,6 +55,27 @@ export default async function CampaignsPage() {
           Ny kampanje
         </Link>
       </div>
+
+      {error && <p className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{ERROR_MESSAGES[error] ?? error}</p>}
+
+      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+        <form action={updateCampaignSettingsAction} className="flex items-end gap-3 text-sm">
+          <label className="block font-medium">
+            Fartsgrense (e-poster per time, GR-07)
+            <input
+              type="number"
+              name="hourlyRateLimit"
+              min={1}
+              required
+              defaultValue={settings?.hourlyRateLimit ?? 50}
+              className="mt-1 w-32 rounded border border-slate-300 px-3 py-2"
+            />
+          </label>
+          <button type="submit" className="rounded border border-slate-300 px-3 py-2 hover:bg-slate-50">
+            Lagre
+          </button>
+        </form>
+      </section>
 
       {campaigns.length === 0 ? (
         <p className="text-sm text-slate-600">Ingen kampanjer opprettet ennå.</p>

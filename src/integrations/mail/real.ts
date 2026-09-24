@@ -117,6 +117,7 @@ export const realMailClient: MailClient = {
       cc: message.cc?.join(', '),
       subject: message.subject,
       text: message.text,
+      headers: message.headers,
       attachments: message.attachments?.map((attachment) => ({
         filename: attachment.filename,
         content: attachment.content,

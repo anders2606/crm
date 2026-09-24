@@ -68,6 +68,8 @@ export async function updateCustomer(formData: FormData): Promise<void> {
       creditLimitCents: parseMoneyToCents(creditLimitInput),
       creditLimitCurrency,
       paymentTermsDays,
+      // GR-07: en rettet e-postadresse skal kunne motta utsendelser igjen.
+      ...(email !== before.email ? { emailBounced: false, emailBouncedAt: null } : {}),
     },
   });
 

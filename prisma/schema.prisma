@@ -143,6 +143,12 @@ model Customer {
   outstandingBalanceMinor Int?
   overdueAmountMinor      Int?
   balanceSyncedAt         DateTime?
+  // GR-07: satt når en kampanje-e-post til denne adressen gir permanent
+  // retur (bounce) – kunden utelates fra senere utsendelser til adressen er
+  // rettet (nullstilles automatisk når e-postadressen endres, se
+  // customers/[id]/actions.ts).
+  emailBounced            Boolean      @default(false)
+  emailBouncedAt          DateTime?
   deletedAt               DateTime?
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt

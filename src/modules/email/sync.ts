@@ -10,6 +10,7 @@ import { decryptSecret } from '@/lib/secrets';
 import { enqueuePowerOfficeInvoiceForward } from '@/lib/jobs';
 import { getMailClient } from '@/integrations/mail';
 import type { MailAccountCredentials, ParsedIncomingMessage } from '@/integrations/mail';
+import { processInboundCampaignFeedback } from '@/modules/campaigns/feedback';
 import { saveDocumentBuffer } from '@/modules/documents/service';
 
 import { findEntityForAddresses } from './linking';
@@ -149,6 +150,12 @@ async function storeMessage(
       createdById: null,
       occurredAt: message.occurredAt,
     });
+  }
+
+  // GR-03/GR-07: en innkommende e-post kan være svar på en kampanje-
+  // utsendelse (AVMELD) eller en automatisk returmelding (bounce).
+  if (direction === 'IN') {
+    await processInboundCampaignFeedback(message, match);
   }
 
   return true;

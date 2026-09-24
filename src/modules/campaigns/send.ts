@@ -8,6 +8,8 @@
 // igjen der den sist var.
 import type { Customer } from '@prisma/client';
 
+import { recordActivity } from '@/lib/activity';
+import { ENTITY_TYPES } from '@/lib/entity-types';
 import { getMailClient } from '@/integrations/mail';
 import { prisma } from '@/lib/db';
 import { decryptSecret } from '@/lib/secrets';
@@ -69,13 +71,18 @@ async function sendCampaignEmail(recipientId: string): Promise<void> {
 
   const mergeValues = resolveMergeFieldValues(recipient.customer);
   const subject = applyMergeFields(recipient.campaign.template.subject ?? recipient.campaign.name, mergeValues);
-  const text = applyMergeFields(recipient.campaign.template.content, mergeValues);
+  const senderAddress = recipient.campaign.emailAccount.address;
+  // GR-03: avmelding skjer via e-post – mailto-lenke i headeren for
+  // e-postklienter som støtter den, og en tekstlig instruksjon for alle
+  // andre. Selve avmeldingen registreres når svaret fanges opp av
+  // e-postsynken (se handleUnsubscribeReply i sync.ts).
+  const text = `${applyMergeFields(recipient.campaign.template.content, mergeValues)}\n\n---\nSvar AVMELD for å melde deg av dette nyhetsbrevet.`;
 
   try {
     const client = getMailClient();
     await client.sendAndArchive(
       {
-        address: recipient.campaign.emailAccount.address,
+        address: senderAddress,
         username: recipient.campaign.emailAccount.username,
         password: decryptSecret(recipient.campaign.emailAccount.encryptedPassword),
         imapHost: recipient.campaign.emailAccount.imapHost,
@@ -83,12 +90,26 @@ async function sendCampaignEmail(recipientId: string): Promise<void> {
         smtpHost: recipient.campaign.emailAccount.smtpHost,
         smtpPort: recipient.campaign.emailAccount.smtpPort,
       },
-      { to: [recipient.customer.email], subject, text },
+      {
+        to: [recipient.customer.email],
+        subject,
+        text,
+        headers: { 'List-Unsubscribe': `<mailto:${senderAddress}?subject=AVMELD>` },
+      },
     );
 
     await prisma.emailCampaignRecipient.update({
       where: { id: recipientId },
       data: { status: 'SENT', sentAt: new Date() },
+    });
+
+    // GR-06: utsendelsen logges på mottakerens tidslinje.
+    await recordActivity({
+      type: 'EMAIL',
+      text: `Nyhetsbrev «${recipient.campaign.name}» sendt`,
+      entityType: ENTITY_TYPES.CUSTOMER,
+      entityId: recipient.customerId,
+      createdById: null,
     });
   } catch (error) {
     await prisma.emailCampaignRecipient.update({

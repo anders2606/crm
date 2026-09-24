@@ -64,6 +64,10 @@ export async function resolveCampaignRecipientCustomerIds(filter: CampaignSegmen
     where: {
       deletedAt: null,
       email: { not: null },
+      // GR-07: en adresse som tidligere har gitt permanent retur utelates
+      // til den er rettet (emailBounced nullstilles automatisk ved endring
+      // av e-postadresse, se customers/[id]/actions.ts).
+      emailBounced: false,
       ...(filter.customerGroupIds.length > 0 ? { groups: { some: { id: { in: filter.customerGroupIds } } } } : {}),
     },
     select: { id: true },
