@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { CustomFieldsSection } from '@/components/custom-fields-section';
 import { DocumentUploadForm } from '@/components/document-upload-form';
 import { prisma } from '@/lib/db';
 import { listActivities } from '@/lib/activity';
@@ -575,6 +576,8 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
           </button>
         </form>
       </section>
+
+      <CustomFieldsSection entityType={ENTITY_TYPES.CUSTOMER} entityId={customer.id} />
     </main>
   );
 }

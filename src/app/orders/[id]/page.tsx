@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { CustomFieldsSection } from '@/components/custom-fields-section';
+import { ENTITY_TYPES } from '@/lib/entity-types';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { AuthenticationRequiredError, hasPermission, PermissionDeniedError, PERMISSIONS, requirePermission } from '@/lib/rbac/permissions';
@@ -149,6 +151,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
           Åpne/last ned PDF
         </a>
       </section>
+
+      <CustomFieldsSection entityType={ENTITY_TYPES.ORDER} entityId={order.id} />
 
       {canWrite && nextOptions.length > 0 && (
         <section className="rounded-lg border border-slate-200 bg-white p-6">

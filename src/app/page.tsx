@@ -111,6 +111,11 @@ export default async function DashboardPage() {
             Rapporter
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.CUSTOM_FIELDS_MANAGE) && (
+          <Link href="/admin/custom-fields" className="underline">
+            Egendefinerte felt
+          </Link>
+        )}
         <Link href="/governing-documents" className="underline">
           Planer og styrende dokumenter
         </Link>

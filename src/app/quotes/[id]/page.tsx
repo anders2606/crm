@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { CustomFieldsSection } from '@/components/custom-fields-section';
+import { ENTITY_TYPES } from '@/lib/entity-types';
 import { prisma } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import {
@@ -372,6 +374,8 @@ export default async function QuoteDetailPage({
           </div>
         </section>
       )}
+
+      <CustomFieldsSection entityType={ENTITY_TYPES.QUOTE} entityId={quote.id} />
 
       {hasPermission(session, PERMISSIONS.ORDER_WRITE) && quote.status === 'ACCEPTED' && !order && (
         <section className="rounded-lg border border-slate-200 bg-white p-6">

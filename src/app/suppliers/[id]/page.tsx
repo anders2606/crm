@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { CustomFieldsSection } from '@/components/custom-fields-section';
 import { DocumentUploadForm } from '@/components/document-upload-form';
 import { listActivities } from '@/lib/activity';
 import { ENTITY_TYPES } from '@/lib/entity-types';
@@ -546,6 +547,8 @@ export default async function SupplierDetailPage({
           </button>
         </form>
       </section>
+
+      <CustomFieldsSection entityType={ENTITY_TYPES.SUPPLIER} entityId={supplier.id} />
     </main>
   );
 }
