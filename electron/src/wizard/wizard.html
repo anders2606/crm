@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<title>Sett opp Pietra Unica CRM</title>
+<style>
+  body { font-family: -apple-system, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.lead { color: #475569; margin: 0 0 20px; font-size: 13px; }
+  .step { display: none; }
+  .step.active { display: block; }
+  label { display: block; font-weight: 500; font-size: 13px; margin: 12px 0 4px; }
+  input, select { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; }
+  .row { display: flex; gap: 8px; align-items: flex-end; }
+  .row input { flex: 1; }
+  button { border-radius: 4px; padding: 8px 14px; font-size: 13px; cursor: pointer; border: 1px solid #cbd5e1; background: white; }
+  button.primary { background: #0f172a; color: white; border-color: #0f172a; }
+  .actions { margin-top: 20px; display: flex; justify-content: space-between; }
+  .error { color: #b91c1c; font-size: 13px; margin-top: 12px; }
+  fieldset { border: 1px solid #e2e8f0; border-radius: 6px; margin-top: 12px; }
+  legend { font-size: 12px; color: #64748b; padding: 0 6px; }
+</style>
+</head>
+<body>
+  <h1>Sett opp Pietra Unica CRM</h1>
+  <p class="lead">Trinn <span id="stepNumber">1</span> av 3</p>
+
+  <div class="step active" data-step="1">
+    <label>Modus</label>
+    <select id="mode">
+      <option value="local">Lokal modus (denne Macen, én bruker)</option>
+      <option value="server">Servermodus (Mac mini, alle på kontornettet)</option>
+    </select>
+
+    <label>Datamappe (database, dokumenter, backup)</label>
+    <div class="row">
+      <input id="dataDir" readonly />
+      <button id="chooseDataDir" type="button">Velg mappe …</button>
+    </div>
+  </div>
+
+  <div class="step" data-step="2">
+    <label>Administratorens navn</label>
+    <input id="adminName" placeholder="Ola Nordmann" />
+    <label>E-post (brukes til innlogging)</label>
+    <input id="adminEmail" type="email" placeholder="ola@marmor.no" />
+    <label>Passord</label>
+    <input id="adminPassword" type="password" />
+    <p class="lead">To-faktor (2FA) settes opp første gang du logger inn.</p>
+  </div>
+
+  <div class="step" data-step="3">
+    <p class="lead">Valgfritt – kan også legges inn senere under «PowerOffice» i systemet.</p>
+    <fieldset>
+      <legend>PowerOffice</legend>
+      <label>Miljø</label>
+      <select id="poEnvironment">
+        <option value="DEMO">Demo</option>
+        <option value="PRODUCTION">Produksjon</option>
+      </select>
+      <label>Application key</label>
+      <input id="poApplicationKey" />
+      <label>Client key</label>
+      <input id="poClientKey" />
+      <label>Subscription key</label>
+      <input id="poSubscriptionKey" />
+      <label>Fakturamottak (e-post)</label>
+      <input id="poInvoiceReceiptEmail" type="email" />
+    </fieldset>
+  </div>
+
+  <p class="error" id="error"></p>
+
+  <div class="actions">
+    <button id="back" type="button">Tilbake</button>
+    <button id="next" class="primary" type="button">Neste</button>
+  </div>
+
+  <script>
+    let step = 1;
+    const totalSteps = 3;
+
+    function showStep(n) {
+      document.querySelectorAll('.step').forEach((el) => el.classList.toggle('active', Number(el.dataset.step) === n));
+      document.getElementById('stepNumber').textContent = String(n);
+      document.getElementById('back').style.visibility = n === 1 ? 'hidden' : 'visible';
+      document.getElementById('next').textContent = n === totalSteps ? 'Fullfør' : 'Neste';
+      document.getElementById('error').textContent = '';
+    }
+
+    function validateStep(n) {
+      if (n === 1 && !document.getElementById('dataDir').value) {
+        return 'Velg en datamappe før du går videre.';
+      }
+      if (n === 2) {
+        if (!document.getElementById('adminName').value.trim()) return 'Fyll inn administratorens navn.';
+        if (!document.getElementById('adminEmail').value.trim()) return 'Fyll inn en e-postadresse.';
+        if (document.getElementById('adminPassword').value.length < 8) return 'Passordet må være minst 8 tegn.';
+      }
+      return null;
+    }
+
+    async function init() {
+      document.getElementById('dataDir').value = await window.wizardAPI.getDefaultDataDir();
+    }
+
+    document.getElementById('chooseDataDir').addEventListener('click', async () => {
+      const chosen = await window.wizardAPI.chooseDataDir();
+      if (chosen) {
+        document.getElementById('dataDir').value = chosen;
+      }
+    });
+
+    document.getElementById('back').addEventListener('click', () => {
+      if (step > 1) {
+        step -= 1;
+        showStep(step);
+      }
+    });
+
+    document.getElementById('next').addEventListener('click', async () => {
+      const error = validateStep(step);
+      if (error) {
+        document.getElementById('error').textContent = error;
+        return;
+      }
+
+      if (step < totalSteps) {
+        step += 1;
+        showStep(step);
+        return;
+      }
+
+      const poApplicationKey = document.getElementById('poApplicationKey').value.trim();
+      const poClientKey = document.getElementById('poClientKey').value.trim();
+      const poSubscriptionKey = document.getElementById('poSubscriptionKey').value.trim();
+      const hasPowerOffice = poApplicationKey || poClientKey || poSubscriptionKey;
+
+      const payload = {
+        mode: document.getElementById('mode').value,
+        dataDir: document.getElementById('dataDir').value,
+        admin: {
+          name: document.getElementById('adminName').value.trim(),
+          email: document.getElementById('adminEmail').value.trim(),
+          password: document.getElementById('adminPassword').value,
+        },
+        poweroffice: hasPowerOffice
+          ? {
+              environment: document.getElementById('poEnvironment').value,
+              applicationKey: poApplicationKey || undefined,
+              clientKey: poClientKey || undefined,
+              subscriptionKey: poSubscriptionKey || undefined,
+              invoiceReceiptEmail: document.getElementById('poInvoiceReceiptEmail').value.trim() || undefined,
+            }
+          : undefined,
+      };
+
+      document.getElementById('next').disabled = true;
+      document.getElementById('next').textContent = 'Setter opp …';
+      const result = await window.wizardAPI.submit(payload);
+      if (!result.ok) {
+        document.getElementById('error').textContent = result.error;
+        document.getElementById('next').disabled = false;
+        document.getElementById('next').textContent = 'Fullfør';
+      }
+      // Ved suksess lukker hovedprosessen dette vinduet selv og starter tjenestene.
+    });
+
+    init();
+    showStep(step);
+  </script>
+</body>
+</html>

@@ -99,6 +99,51 @@ Underveis fant og rettet denne verifiseringen tre reelle feil i koden
    å tolke Prisma CLI-en som et eget Electron-hovedscript i stedet for et
    vanlig Node-skript.
 
+## Installasjonsveiviseren (DR-12/DR-13) – hva som er verifisert
+
+I tillegg til kjeden over ble selve førstegangs-veiviseren (`src/wizard/`)
+verifisert med en ekte, headless GUI-drevet test: Playwright sin
+`_electron`-driver styrte det virkelige veiviser-vinduet (fylte ut
+datamappe/admin/PowerOffice-steg, klikket «Neste»/fullfør) i et Electron
+kjørt under Xvfb, med Linux sine PostgreSQL-binærer symlenket inn som
+beskrevet over. Dette fant og rettet tre reelle feil:
+
+1. **`prisma/seed.ts` sin egen CLI-`main()` kjørte utilsiktet to ganger**
+   når installasjonsveiviseren opprettet admin-brukeren: `installer-
+   tasks.ts` importerte funksjoner fra `seed.ts`, og esbuild sin bundling
+   av det bunter INN `seed.ts` sin `if (require.main === module)`-vakt i
+   samme fil – som da feilaktig ble sann for HELE den bundlede filen.
+   Løst ved å flytte den delte logikken til `prisma/seed-lib.ts` (uten
+   noen kjør-hvis-direkte-vakt) og la `prisma/seed.ts` være en tynn
+   CLI-inngang som aldri importeres av noe annet.
+2. **Hele appen avsluttet i det øyeblikket veiviseren fullførte**: uten en
+   egen `window-all-closed`-håndtering brukte Electron sin
+   standardoppførsel (avslutt appen når siste vindu lukkes, gjelder
+   Linux/Windows – ikke macOS), og veiviseren lukker jo alltid sitt eget
+   (eneste) vindu programmatisk med det samme etter fullført oppsett. Dette
+   drepte web-serveren/workeren før de rakk å bli nåbare. Rettet med en
+   tom `app.on('window-all-closed', ...)` i `main.ts` – kun «Avslutt» i
+   menylinjen skal faktisk avslutte denne menylinje-appen.
+3. **`.env`-filen lekket inn i den pakkede appen**: Next.js sin
+   `output: 'standalone'`-bygg kopierer automatisk `.env` inn i
+   `.next/standalone/`, som `extraResources` da også kopierte videre inn i
+   `Contents/Resources/app/` – dvs. utviklerens hemmeligheter (dev-
+   passord, krypteringsnøkkel) ville blitt distribuert i DMG-en. Rettet
+   med et `filter: ["**/*", "!.env*"]` på den `extraResources`-oppføringen
+   i `package.json`.
+
+Etter disse rettelsene fullfører veiviseren rent, oppretter kun ÉN
+admin-bruker (ingen fantom-kjøring av `seed.ts`), og web-serveren svarer
+`{"status":"ok","database":"ok"}` på `/api/health` etter at veiviseren har
+lukket seg – uten at appen selv avslutter.
+
+To av disse tre feilene (window-all-closed og race-conditions i
+rettighets-/rolleoppsett løst tidligere med `createMany`+`skipDuplicates`
+og en `submitInFlight`-vakt mot dobbel innsending) ville trolig IKKE vist
+seg på en ekte Mac på samme måte, siden macOS sin Electron-standard for
+«alle vinduer lukket» uansett er å ikke avslutte appen – men den eksplisitte
+håndteringen er riktig og nødvendig uavhengig av plattform, så den beholdes.
+
 ## Hva som gjenstår på en ekte Mac
 
 - At de faktiske arm64-PostgreSQL-binærene (ikke Linux sine, som ble brukt

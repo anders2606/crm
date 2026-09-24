@@ -1,8 +1,12 @@
 // DR-02/DR-13: appens datamappe er alt lokal modus/servermodus trenger å
 // vite om for å finne igjen database, dokumenter, logger og innstillinger
 // mellom oppstarter. Standardplassering følger macOS-konvensjon
-// (~/Library/Application Support/<appnavn>); PIETRA_UNICA_DATA_DIR lar
-// installasjonsveiviseren (DR-13) og utvikling/test overstyre den.
+// (~/Library/Application Support/<appnavn>), men installasjonsveiviseren
+// (DR-13) lar brukeren velge en annen – valget huskes i en liten
+// «lokator»-fil på et sted Electron alltid selv finner igjen
+// (`app.getPath('userData')`, uavhengig av hvor selve datamappen ligger).
+// PIETRA_UNICA_DATA_DIR overstyrer alt dette, kun for utvikling/test.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { app } from 'electron';
@@ -11,8 +15,26 @@ export function getDefaultDataDir(): string {
   return path.join(app.getPath('appData'), 'Pietra Unica CRM');
 }
 
+export function getLocatorFilePath(): string {
+  return path.join(app.getPath('userData'), 'data-dir-location.txt');
+}
+
+export function readChosenDataDir(): string | null {
+  try {
+    return readFileSync(getLocatorFilePath(), 'utf8').trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Kalles av installasjonsveiviseren (DR-13) når brukeren har valgt en datamappe. */
+export function writeChosenDataDir(dir: string): void {
+  mkdirSync(path.dirname(getLocatorFilePath()), { recursive: true });
+  writeFileSync(getLocatorFilePath(), dir, 'utf8');
+}
+
 export function getDataDir(): string {
-  return process.env.PIETRA_UNICA_DATA_DIR ?? getDefaultDataDir();
+  return process.env.PIETRA_UNICA_DATA_DIR ?? readChosenDataDir() ?? getDefaultDataDir();
 }
 
 /**
@@ -41,6 +63,10 @@ export function getWebServerEntry(): string {
 
 export function getWorkerEntry(): string {
   return path.join(getAppServerDir(), 'dist-worker', 'worker.js');
+}
+
+export function getInstallerTasksEntry(): string {
+  return path.join(getAppServerDir(), 'dist-worker', 'installer-tasks.js');
 }
 
 export function getPrismaCliEntry(): string {
