@@ -99,7 +99,8 @@ export default async function BankImportPage({
                     {statementImport.transactions.length} transaksjon(er)
                   </span>
                 </div>
-                <table className="w-full text-left text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-500">
                       <th className="py-1">Dato</th>
@@ -165,6 +166,7 @@ export default async function BankImportPage({
                     ))}
                   </tbody>
                 </table>
+                </div>
               </li>
             ))}
           </ul>

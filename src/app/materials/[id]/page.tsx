@@ -103,7 +103,7 @@ export default async function MaterialDetailPage({
             Handelsnavn
             <input name="tradeName" defaultValue={material.tradeName ?? ''} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
           </label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block font-medium">
               Type
               <select name="type" defaultValue={material.type} className="mt-1 w-full rounded border border-slate-300 px-3 py-2">
@@ -126,7 +126,7 @@ export default async function MaterialDetailPage({
               </select>
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block font-medium">
               Opprinnelsesland/brudd
               <input name="origin" defaultValue={material.origin ?? ''} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
@@ -136,7 +136,7 @@ export default async function MaterialDetailPage({
               <input name="color" defaultValue={material.color ?? ''} className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block font-medium">
               Tykkelser (mm, kommaseparert)
               <input
@@ -215,7 +215,7 @@ export default async function MaterialDetailPage({
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 font-medium">Bilder</h2>
         {photoGroups.length > 0 ? (
-          <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {photoGroups.map((group) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -242,7 +242,8 @@ export default async function MaterialDetailPage({
         )}
 
         {material.priceEntries.length > 0 ? (
-          <table className="mb-6 w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="mb-6 w-full text-sm">
             <thead className="border-b border-slate-200 text-left">
               <tr>
                 <th className="py-1 pr-3 font-medium">Dato</th>
@@ -266,11 +267,12 @@ export default async function MaterialDetailPage({
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="mb-6 text-sm text-slate-600">Ingen priser registrert ennå.</p>
         )}
 
-        <form action={addPriceEntry} className="grid grid-cols-3 gap-3 text-sm">
+        <form action={addPriceEntry} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <input type="hidden" name="materialId" value={material.id} />
           <select name="type" defaultValue="PURCHASE" className="rounded border border-slate-300 px-2 py-1.5">
             <option value="PURCHASE">Innkjøp</option>

@@ -46,7 +46,7 @@ export default async function NewMaterialPage({
           Handelsnavn
           <input name="tradeName" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             Type
             <select name="type" defaultValue="MARBLE" className="mt-1 w-full rounded border border-slate-300 px-3 py-2">
@@ -69,7 +69,7 @@ export default async function NewMaterialPage({
             </select>
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             Opprinnelsesland/brudd
             <input name="origin" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
@@ -79,7 +79,7 @@ export default async function NewMaterialPage({
             <input name="color" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             Tykkelser (mm, kommaseparert)
             <input name="thicknessesMm" placeholder="20, 30" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />

@@ -43,7 +43,7 @@ export default async function NewSupplierPage({
           Navn
           <input name="name" required className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             Land
             <input
@@ -58,7 +58,7 @@ export default async function NewSupplierPage({
             <input name="website" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             E-post
             <input type="email" name="email" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
@@ -68,7 +68,7 @@ export default async function NewSupplierPage({
             <input name="phone" placeholder="+39 ..." className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
           </label>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="block text-sm font-medium">
             Valuta
             <input name="currency" defaultValue="EUR" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
@@ -82,7 +82,7 @@ export default async function NewSupplierPage({
             <input type="number" name="paymentTermsDays" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
           </label>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="col-span-2 block text-sm font-medium">
             Kredittramme
             <input name="creditLimit" placeholder="f.eks. 10 000,00" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
@@ -92,7 +92,7 @@ export default async function NewSupplierPage({
             <input name="creditLimitCurrency" defaultValue="EUR" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             IBAN
             <input name="iban" className="mt-1 w-full rounded border border-slate-300 px-3 py-2" />

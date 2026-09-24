@@ -151,7 +151,8 @@ export default async function QuoteDetailPage({
         {quote.lines.length === 0 ? (
           <p className="mb-4 text-sm text-slate-600">Ingen linjer lagt til ennå.</p>
         ) : (
-          <table className="mb-4 w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="mb-4 w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2">Beskrivelse</th>
@@ -193,6 +194,7 @@ export default async function QuoteDetailPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         <div className="ml-auto w-64 space-y-1 text-sm">

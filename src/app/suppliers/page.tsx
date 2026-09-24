@@ -85,7 +85,8 @@ export default async function SuppliersPage({
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-left">
               <tr>
                 <th className="px-4 py-2 font-medium">Navn</th>
@@ -109,6 +110,7 @@ export default async function SuppliersPage({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </main>

@@ -42,7 +42,8 @@ export default async function OrdersPage() {
       {orders.length === 0 ? (
         <p className="text-sm text-slate-600">Ingen ordre registrert ennå.</p>
       ) : (
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-slate-500">
               <th className="py-2">Nummer</th>
@@ -76,6 +77,7 @@ export default async function OrdersPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </main>
   );

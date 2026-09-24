@@ -128,7 +128,7 @@ export default async function SupplierDetailPage({
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
             />
           </label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">
               Land
               <input
@@ -147,7 +147,7 @@ export default async function SupplierDetailPage({
               />
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">
               E-post
               <input
@@ -166,7 +166,7 @@ export default async function SupplierDetailPage({
               />
             </label>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <label className="block text-sm font-medium">
               Valuta
               <input
@@ -193,7 +193,7 @@ export default async function SupplierDetailPage({
               />
             </label>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <label className="col-span-2 block text-sm font-medium">
               Kredittramme
               <input
@@ -215,7 +215,7 @@ export default async function SupplierDetailPage({
               />
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">
               IBAN
               <input
@@ -262,7 +262,7 @@ export default async function SupplierDetailPage({
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen kontaktpersoner registrert.</p>
         )}
-        <form action={addContactPerson} className="grid grid-cols-2 gap-3 text-sm">
+        <form action={addContactPerson} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <input type="hidden" name="supplierId" value={supplier.id} />
           <input name="name" placeholder="Navn" required className="rounded border border-slate-300 px-3 py-2" />
           <input name="role" placeholder="Rolle (salg/logistikk/økonomi)" className="rounded border border-slate-300 px-3 py-2" />
@@ -289,7 +289,7 @@ export default async function SupplierDetailPage({
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen adresser registrert.</p>
         )}
-        <form action={addAddress} className="grid grid-cols-2 gap-3 text-sm">
+        <form action={addAddress} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <input type="hidden" name="supplierId" value={supplier.id} />
           <select name="type" className="rounded border border-slate-300 px-3 py-2" defaultValue="VISIT">
             <option value="VISIT">Besøksadresse</option>
@@ -444,7 +444,8 @@ export default async function SupplierDetailPage({
         {invoiceStatuses.length === 0 ? (
           <p className="text-sm text-slate-600">Ingen bilag registrert i PowerOffice for denne leverandøren ennå.</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2">Fakturanr.</th>
@@ -476,6 +477,7 @@ export default async function SupplierDetailPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -503,7 +505,7 @@ export default async function SupplierDetailPage({
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen åpne oppgaver.</p>
         )}
-        <form action={createTask} className="grid grid-cols-3 gap-3 text-sm">
+        <form action={createTask} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <input type="hidden" name="supplierId" value={supplier.id} />
           <input name="title" placeholder="Oppgave" required className="col-span-2 rounded border border-slate-300 px-3 py-2" />
           <input type="datetime-local" name="dueAt" className="rounded border border-slate-300 px-3 py-2" />
@@ -529,7 +531,7 @@ export default async function SupplierDetailPage({
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen aktivitet registrert ennå.</p>
         )}
-        <form action={addActivity} className="grid grid-cols-3 gap-3 text-sm">
+        <form action={addActivity} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <input type="hidden" name="supplierId" value={supplier.id} />
           <select name="type" className="rounded border border-slate-300 px-3 py-2" defaultValue="NOTE">
             <option value="NOTE">Notat</option>

@@ -113,7 +113,8 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
         {campaign.recipients.length === 0 ? (
           <p className="text-sm text-slate-600">Ingen mottakere ennå – legg kampanjen i kø for å løse ut utvalget.</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2">Kunde</th>
@@ -137,6 +138,7 @@ export default async function CampaignDetailPage({ params }: { params: { id: str
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </main>

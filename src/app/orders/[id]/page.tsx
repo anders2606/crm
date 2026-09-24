@@ -129,7 +129,8 @@ export default async function OrderDetailPage({ params }: { params: { id: string
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 font-medium">Linjer</h2>
-        <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
           <tbody>
             {order.quote.lines.map((line) => (
               <tr key={line.id} className="border-b border-slate-100">
@@ -139,6 +140,7 @@ export default async function OrderDetailPage({ params }: { params: { id: string
             ))}
           </tbody>
         </table>
+        </div>
         <div className="mt-2 flex justify-between text-sm font-medium">
           <span>Totalt</span>
           <span>{formatMoney(order.quote.totalMinor, order.quote.currency)}</span>

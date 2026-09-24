@@ -148,7 +148,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
             />
           </label>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">
               E-post
               <input
@@ -167,7 +167,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
               />
             </label>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <label className="col-span-2 block text-sm font-medium">
               Kredittgrense
               <input
@@ -246,7 +246,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen kontaktpersoner registrert.</p>
         )}
-        <form action={addContactPerson} className="grid grid-cols-2 gap-3 text-sm">
+        <form action={addContactPerson} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <input type="hidden" name="customerId" value={customer.id} />
           <input name="name" placeholder="Navn" required className="rounded border border-slate-300 px-3 py-2" />
           <input name="role" placeholder="Rolle" className="rounded border border-slate-300 px-3 py-2" />
@@ -272,7 +272,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen adresser registrert.</p>
         )}
-        <form action={addAddress} className="grid grid-cols-2 gap-3 text-sm">
+        <form action={addAddress} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <input type="hidden" name="customerId" value={customer.id} />
           <select name="type" className="rounded border border-slate-300 px-3 py-2" defaultValue="VISIT">
             <option value="VISIT">Besøksadresse</option>
@@ -449,7 +449,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         {allGroups.length > 0 ? (
           <form action={setCustomerGroups} className="space-y-3 text-sm">
             <input type="hidden" name="customerId" value={customer.id} />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {allGroups.map((group) => (
                 <label key={group.id} className="flex items-center gap-2">
                   <input
@@ -494,7 +494,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen samtykke registrert.</p>
         )}
-        <form action={addConsent} className="grid grid-cols-3 gap-3 text-sm">
+        <form action={addConsent} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <input type="hidden" name="customerId" value={customer.id} />
           <input name="channel" placeholder="Kanal (f.eks. nyhetsbrev)" required className="col-span-2 rounded border border-slate-300 px-3 py-2" />
           <select name="status" className="rounded border border-slate-300 px-3 py-2" defaultValue="GIVEN">
@@ -532,7 +532,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen åpne oppgaver.</p>
         )}
-        <form action={createTask} className="grid grid-cols-3 gap-3 text-sm">
+        <form action={createTask} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <input type="hidden" name="customerId" value={customer.id} />
           <input name="title" placeholder="Oppgave" required className="col-span-2 rounded border border-slate-300 px-3 py-2" />
           <input type="datetime-local" name="dueAt" className="rounded border border-slate-300 px-3 py-2" />
@@ -558,7 +558,7 @@ export default async function CustomerDetailPage({ params }: { params: { id: str
         ) : (
           <p className="mb-4 text-sm text-slate-600">Ingen aktivitet registrert ennå.</p>
         )}
-        <form action={addActivity} className="grid grid-cols-3 gap-3 text-sm">
+        <form action={addActivity} className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <input type="hidden" name="customerId" value={customer.id} />
           <select name="type" className="rounded border border-slate-300 px-3 py-2" defaultValue="NOTE">
             <option value="NOTE">Notat</option>

@@ -105,7 +105,7 @@ export default async function NewCustomerPage({
           />
         </label>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             E-post
             <input
@@ -125,7 +125,7 @@ export default async function NewCustomerPage({
           </label>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <label className="col-span-2 block text-sm font-medium">
             Kredittgrense
             <input

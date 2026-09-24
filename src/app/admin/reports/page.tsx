@@ -114,7 +114,8 @@ export default async function ReportsPage({
         {byCustomer.length === 0 ? (
           <p className="text-sm text-slate-600">Ingen ordre i perioden.</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2">Kunde</th>
@@ -132,6 +133,7 @@ export default async function ReportsPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -145,7 +147,8 @@ export default async function ReportsPage({
         {byGroup.length === 0 ? (
           <p className="text-sm text-slate-600">Ingen ordre i perioden.</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2">Kundegruppe</th>
@@ -163,6 +166,7 @@ export default async function ReportsPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
@@ -176,7 +180,8 @@ export default async function ReportsPage({
         {byMaterial.length === 0 ? (
           <p className="text-sm text-slate-600">Ingen ordre med materialkoblede linjer i perioden.</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2">Materiale</th>
@@ -196,6 +201,7 @@ export default async function ReportsPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </main>

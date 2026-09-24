@@ -226,7 +226,8 @@ export default async function PowerOfficeSettingsPage({
         {recentLogs.length === 0 ? (
           <p className="text-sm text-slate-600">Ingen synkroniseringer registrert ennå.</p>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2">Tidspunkt</th>
@@ -250,6 +251,7 @@ export default async function PowerOfficeSettingsPage({
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </main>

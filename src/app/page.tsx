@@ -52,7 +52,7 @@ export default async function DashboardPage() {
         />
       </form>
 
-      <nav className="mb-6 flex gap-4 text-sm">
+      <nav className="mb-6 flex flex-wrap gap-4 text-sm">
         {hasPermission(session, PERMISSIONS.CUSTOMER_READ) && (
           <Link href="/customers" className="underline">
             Kunder
@@ -114,6 +114,11 @@ export default async function DashboardPage() {
         {hasPermission(session, PERMISSIONS.CUSTOM_FIELDS_MANAGE) && (
           <Link href="/admin/custom-fields" className="underline">
             Egendefinerte felt
+          </Link>
+        )}
+        {hasPermission(session, PERMISSIONS.API_KEYS_MANAGE) && (
+          <Link href="/admin/api-keys" className="underline">
+            API-nøkler
           </Link>
         )}
         <Link href="/governing-documents" className="underline">
