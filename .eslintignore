@@ -1,2 +1,5 @@
 # Generert fra docs/poweroffice-apiv2-demo.json (npm run poweroffice:types) – ikke håndskrevet kode.
 src/integrations/poweroffice/schema.d.ts
+
+# M9 (DR-10): bunet av scripts/build-worker.mjs – en generert artefakt, ikke håndskrevet kode.
+dist-worker/

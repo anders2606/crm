@@ -1,0 +1,71 @@
+{
+  "name": "pietra-unica-crm-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "M9 (DR-10/DR-11): kontrollpanel i menylinjen som pakker og driver Pietra Unica CRM som en macOS-app (DMG, arm64). Se README.md i denne mappen for hvilke binærfiler som må legges til før DMG-en kan bygges på en Mac.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && electron .",
+    "dist:mac": "npm run build && electron-builder --mac --arm64"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.3"
+  },
+  "build": {
+    "appId": "no.marmor.pietraunica",
+    "productName": "Pietra Unica CRM",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "."
+      },
+      {
+        "from": "../.next/standalone",
+        "to": "app"
+      },
+      {
+        "from": "../.next/static",
+        "to": "app/.next/static"
+      },
+      {
+        "from": "../prisma",
+        "to": "app/prisma"
+      },
+      {
+        "from": "../dist-worker",
+        "to": "app/dist-worker"
+      },
+      {
+        "from": "../node_modules/prisma",
+        "to": "app/node_modules/prisma"
+      },
+      {
+        "from": "../node_modules/@prisma",
+        "to": "app/node_modules/@prisma"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["arm64"]
+        }
+      ],
+      "identity": null
+    },
+    "asarUnpack": [
+      "**/*.node"
+    ]
+  }
+}

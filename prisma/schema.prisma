@@ -2,7 +2,12 @@
 // Databaseendringer skjer kun via migreringer (`npm run db:migrate`), aldri manuelt.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // DR-10: appen pakkes for macOS Apple Silicon (M9) – "native" dekker
+  // vanlig utvikling (Linux/Intel/Apple Silicon, alt etter hvor det bygges),
+  // og darwin-arm64 sikrer at riktig motor følger med uansett hvilken
+  // maskin `prisma generate`/`next build` kjøres på før DMG-en pakkes.
+  binaryTargets = ["native", "darwin-arm64"]
 }
 
 datasource db {

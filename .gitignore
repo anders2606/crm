@@ -14,3 +14,10 @@ test-results/
 playwright-report/
 blob-report/
 tsconfig.tsbuildinfo
+
+# M9 (DR-10): bunet worker og Electron-pakking – bygges av
+# scripts/build-worker.mjs / electron/package.json, aldri commitet.
+/dist-worker/
+electron/release/
+electron/resources/postgres/bin/
+
