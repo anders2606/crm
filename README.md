@@ -5,8 +5,8 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 ## Status
 
 **M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter, M3 E-post, M4 Materialbibliotek,
-M5 Tilbud og ordre, M6 PowerOffice og M7 Bilag og betalinger er bygget.** Se statustabellen i
-`CLAUDE.md` for øvrige milepæler.
+M5 Tilbud og ordre, M6 PowerOffice, M7 Bilag og betalinger og M8 Utsendelser og rapporter er
+bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
 
 - M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
 - M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
@@ -29,6 +29,11 @@ M5 Tilbud og ordre, M6 PowerOffice og M7 Bilag og betalinger er bygget.** Se sta
   oppdateres automatisk fra PowerOffice sin utgående faktura, en oppgave varsler selger ved mottatt
   forskudd, og en kontoutskrift (CAMT.053/CSV) kan lastes opp som reserve når PowerOffice ikke har
   rukket å bokføre betalingen ennå.
+- M8: gruppeutsendelser (nyhetsbrev) til kundegrupper/filtrerte utvalg med samtykkekontroll,
+  flettefelt og en fartsbegrenset workerjobb som sender/planlegger automatisk; avmelding og
+  bounce fanges opp fra e-postsynken; salgs-/konverteringsrapporter med CSV-eksport; egendefinerte
+  felt på kunder/leverandører/tilbud/ordre uten kode; et nøkkelbasert REST-API for en fremtidig
+  nettbutikk; og mobiltilpasset visning for bruk ute.
 
 ## Oppstart (utvikling)
 
@@ -335,3 +340,54 @@ ville vært gjetting (se kommentarer i `src/modules/bank-import/match.ts`).
 
 **Bevisst utsatt:** BI-05 (kobling av bilag til ordre/prosjekt for etterkalkulasjon – BØR, ingen
 ren datamodell for dette ennå), IN-14 (kontosaldo/likviditet i dashboard – KAN, kun etter avtale).
+
+## M8: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene GR-01–05 og GR-07 (kap. 19), samt BØR-kravene GR-06, GE-08, GE-09, GE-10 og GE-11.
+
+**Gruppeutsendelser** (GR-01/02/04, `/admin/campaigns`): en kampanje sendes til en eller flere
+kundegrupper og/eller et filtrert utvalg (kjøpt siste N dager, land, materialinteresse). Kun
+kunder med gyldig e-post og uten trukket nyhetsbrevsamtykke inkluderes – norsk markedsføringslov
+tillater markedsføring til eksisterende kundeforhold uten eget samtykke, så fravær av registrert
+samtykke er fortsatt kvalifisert (kun et eksplisitt trukket samtykke utelater). Maler har fått et
+eget emnefelt og støtter flettefeltene `{{navn}}`, `{{firma}}` og `{{kontaktperson}}`. Mottakerlisten
+fryses først når kampanjen legges i sendekø – en endring av filtrene på en kladd påvirker aldri en
+allerede kødd utsendelse.
+
+**Utsendelse via worker** (GR-05/07): en ny periodisk workerjobb sender køede mottakere innenfor en
+konfigurerbar fartsgrense per time (felles for alle kampanjer, siden Domeneshops SMTP er en delt
+ressurs), flytter planlagte kampanjer til sending når tidspunktet passeres, og markerer en kampanje
+som fullført når alle mottakere er behandlet. Jobben er stateless (spør kun QUEUED-rader hver
+kjøring), så en pause eller omstart av workeren krever ingen egen gjenopptakingslogikk.
+
+**Avmelding og bounce** (GR-03/07): hver kampanje-e-post har en `List-Unsubscribe`-header med
+mailto, og en tekstlig «svar AVMELD»-instruksjon. Svaret fanges opp av den vanlige e-postsynken
+(M3) og registreres automatisk som trukket samtykke. En automatisk returmelding (bounce) gjenkjennes
+heuristisk (avsenderadresse/-nøkkelord, ikke ekte DSN-parsing) og markerer kundens e-postadresse som
+utelatt fra senere utsendelser til adressen rettes.
+
+**Statistikk** (GR-06, BØR): hver kampanje viser antall sendt/returnert/avmeldt/hoppet over, og
+utsendelsen logges på mottakerens tidslinje. Åpning/klikk måles ikke (krever en server åpen mot
+internett, i strid med arbeidsregel 11).
+
+**Rapporter og CSV-eksport** (GE-10, BØR, `/admin/reports`): salg per kunde, per kundegruppe og per
+materiale, samt tilbudskonverteringsgrad – alle med valgfritt datofilter og CSV-eksport (Excel/Numbers
+åpner filen direkte). Salg regnes fra bekreftede, ikke-kansellerte ordre.
+
+**Egendefinerte felt** (GE-09, BØR, `/admin/custom-fields`): administrator legger til felt
+(tekst/tall/dato/ja-nei/valgliste) på kunder, leverandører, tilbud og ordre uten hjelp fra
+utvikler. Feltene lagres generisk (samme mønster som Activity/Task/Document) og vises/redigeres på
+det aktuelle kortet.
+
+**Åpent REST-API** (GE-11, BØR, `/api/v1`, `/admin/api-keys`): nøkkelbasert API for en fremtidig
+nettbutikk på marmor.no – henter materialer/priser/lagerstatus (kun salgspris, aldri innkjøpspris)
+og oppretter kunder/ordre. En nettbutikkordre er allerede akseptert av kunden i checkout, så API-et
+oppretter tilbudet (ACCEPTED) og ordren (CONFIRMED) i samme operasjon uten en egen intern
+godkjenningsfase. Ingen plattform er valgt eller bygget mot ennå (kap. 19).
+
+**Mobiltilpasning** (GE-08, BØR): skjema- og detaljsidene som brukes ute (kunde/leverandør/tilbud/
+ordre/materiale) er responsive fra mobilbredde og opp, tabeller kan skrolles horisontalt på smale
+skjermer, og dokumentopplasting (M2) tilbyr kameraopptak på mobil via nettleserens filvelger.
+Verifisert i emulert mobilvisning, ikke på fysisk enhet.
+
+**Bevisst utsatt:** GE-12 (kalenderintegrasjon/CalDAV – KAN).
