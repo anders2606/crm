@@ -101,6 +101,11 @@ export default async function DashboardPage() {
             Bankfilimport
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.CAMPAIGN_MANAGE) && (
+          <Link href="/admin/campaigns" className="underline">
+            Utsendelser
+          </Link>
+        )}
         <Link href="/governing-documents" className="underline">
           Planer og styrende dokumenter
         </Link>

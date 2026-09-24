@@ -25,6 +25,14 @@ export const PERMISSIONS = {
   // LE-08: opplasting og manuell matching av kontoutskrift (reserve når
   // PowerOffice ikke har bokført betalingen ennå).
   BANK_IMPORT_MANAGE: 'bank.import.manage',
+  // GR-01–07: opprette og sende gruppeutsendelser.
+  CAMPAIGN_MANAGE: 'campaign.manage',
+  // GE-10: salgs-/konverteringsrapporter og CSV-eksport.
+  REPORTS_READ: 'reports.read',
+  // GE-09: definere egendefinerte felt på kunder/leverandører/tilbud/ordre.
+  CUSTOM_FIELDS_MANAGE: 'custom_fields.manage',
+  // GE-11: opprette/tilbakekalle API-nøkler for det åpne REST-API-et.
+  API_KEYS_MANAGE: 'api_keys.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS] | (string & {});

@@ -385,10 +385,11 @@ model EmailAccount {
   updatedAt         DateTime @updatedAt
   createdById       String?
 
-  owner       User?              @relation("EmailAccountOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
-  accessRoles EmailAccountRole[]
-  messages    EmailMessage[]
-  campaigns   EmailCampaign[]
+  owner            User?              @relation("EmailAccountOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  accessRoles      EmailAccountRole[]
+  messages         EmailMessage[]
+  campaigns        EmailCampaign[]
+  campaignSettings CampaignSettings[]
 
   @@map("email_accounts")
 }
@@ -955,6 +956,8 @@ model CampaignSettings {
   hourlyRateLimit Int      @default(50)
   updatedAt       DateTime @updatedAt
   updatedById     String?
+
+  emailAccount EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
 
   @@map("campaign_settings")
 }

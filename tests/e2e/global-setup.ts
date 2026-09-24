@@ -43,8 +43,16 @@ export default async function globalSetup(): Promise<void> {
   const prisma = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
 
   try {
-    // M1/M2/M3/M4/M5/M6/M7-tabeller nullstilles også, slik at KU-12-testen
+    // M1/M2/M3/M4/M5/M6/M7/M8-tabeller nullstilles også, slik at KU-12-testen
     // ("tomt register") er pålitelig på tvers av kjøringer, ikke bare første gang.
+    // EmailCampaign/CampaignSettings slettes først – de har Restrict-FK-er mot
+    // Template/EmailAccount som ellers ville blokkert slettingen av de.
+    await prisma.emailCampaignRecipient.deleteMany();
+    await prisma.emailCampaign.deleteMany();
+    await prisma.campaignSettings.deleteMany();
+    await prisma.customFieldValue.deleteMany();
+    await prisma.customFieldDefinition.deleteMany();
+    await prisma.apiKey.deleteMany();
     await prisma.bankTransaction.deleteMany();
     await prisma.bankStatementImport.deleteMany();
     await prisma.supplierInvoiceStatus.deleteMany();
@@ -98,6 +106,10 @@ export default async function globalSetup(): Promise<void> {
       'template.manage',
       'poweroffice.manage',
       'bank.import.manage',
+      'campaign.manage',
+      'reports.read',
+      'custom_fields.manage',
+      'api_keys.manage',
     ];
     const permissions = await Promise.all(
       permissionKeys.map((key) => prisma.permission.create({ data: { key } })),
