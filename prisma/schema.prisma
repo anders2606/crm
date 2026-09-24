@@ -148,12 +148,13 @@ model Customer {
   updatedAt               DateTime     @updatedAt
   createdById             String?
 
-  addresses      Address[]
-  contactPersons ContactPerson[]
-  consents       Consent[]
-  groups         CustomerGroup[] @relation("CustomerToGroup")
-  quotes         Quote[]
-  followUpRule   FollowUpRule?
+  addresses          Address[]
+  contactPersons     ContactPerson[]
+  consents           Consent[]
+  groups             CustomerGroup[]          @relation("CustomerToGroup")
+  quotes             Quote[]
+  followUpRule       FollowUpRule?
+  campaignRecipients EmailCampaignRecipient[]
 
   @@index([orgNr])
   @@index([name])
@@ -387,6 +388,7 @@ model EmailAccount {
   owner       User?              @relation("EmailAccountOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   accessRoles EmailAccountRole[]
   messages    EmailMessage[]
+  campaigns   EmailCampaign[]
 
   @@map("email_accounts")
 }
@@ -608,9 +610,10 @@ model Template {
   updatedAt       DateTime       @updatedAt
   createdById     String?
 
-  customerGroup    CustomerGroup? @relation(fields: [customerGroupId], references: [id], onDelete: SetNull)
-  quotesAsTemplate Quote[]        @relation("QuoteTemplate")
+  customerGroup    CustomerGroup?  @relation(fields: [customerGroupId], references: [id], onDelete: SetNull)
+  quotesAsTemplate Quote[]         @relation("QuoteTemplate")
   followUpRules    FollowUpRule[]
+  campaigns        EmailCampaign[]
 
   @@index([groupId])
   @@index([type, isCurrent])
@@ -934,4 +937,144 @@ model BankTransaction {
   @@index([importId])
   @@index([kid])
   @@map("bank_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// M8 Utsendelser og rapporter (GR-01–07, GE-08–11). Arbeidsregel 12: selve
+// SMTP-kallet for hver mottaker skjer kun i workeren, aldri i en
+// brukerforespørsel – admin-UI-et legger kun en kampanje/mottakerliste i
+// databasen, med status QUEUED, og workeren behandler den.
+// ---------------------------------------------------------------------------
+
+// GR-07: fartsgrense og avsenderkonto er globale (samme SMTP-konto/-grense
+// brukes uansett hvilken kampanje som sendes), administrert ett sted i
+// stedet for per kampanje.
+model CampaignSettings {
+  id              String   @id @default("singleton")
+  emailAccountId  String?
+  hourlyRateLimit Int      @default(50)
+  updatedAt       DateTime @updatedAt
+  updatedById     String?
+
+  @@map("campaign_settings")
+}
+
+// GR-01/02/04/05: én utsendelse til et kundeutvalg. Samsvarer med
+// mottakerlisten i EmailCampaignRecipient, opprettet når kampanjen legges i
+// sendekø (aldri endret etterpå, så statistikken i GR-06 er stabil).
+model EmailCampaign {
+  id                        String              @id @default(uuid())
+  name                      String
+  templateId                String
+  emailAccountId            String
+  status                    EmailCampaignStatus @default(DRAFT)
+  // GR-05: satt = planlagt utsendelse; workeren sender automatisk når tiden
+  // inntreffer. Tom = sendes når administrator selv setter status SENDING.
+  scheduledAt               DateTime?
+  // GR-01: tomt utvalg = alle kunder. Kombineres med filtrene under (AND).
+  customerGroupIds          String[]            @default([])
+  filterPurchasedWithinDays Int?
+  filterCountry             String?
+  filterMaterialId          String?
+  sentAt                    DateTime?
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  createdById               String?
+
+  template     Template                 @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  emailAccount EmailAccount             @relation(fields: [emailAccountId], references: [id], onDelete: Restrict)
+  recipients   EmailCampaignRecipient[]
+
+  @@index([status, scheduledAt])
+  @@map("email_campaigns")
+}
+
+enum EmailCampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  COMPLETED
+  CANCELLED
+}
+
+// GR-06: status per mottaker gir statistikken (sendt/returnert/avmeldt).
+model EmailCampaignRecipient {
+  id           String                       @id @default(uuid())
+  campaignId   String
+  customerId   String
+  status       EmailCampaignRecipientStatus @default(QUEUED)
+  sentAt       DateTime?
+  bouncedAt    DateTime?
+  errorMessage String?
+  createdAt    DateTime                     @default(now())
+
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, customerId])
+  @@index([campaignId, status])
+  @@map("email_campaign_recipients")
+}
+
+enum EmailCampaignRecipientStatus {
+  QUEUED
+  SENT
+  BOUNCED
+  UNSUBSCRIBED
+  SKIPPED
+}
+
+// GE-09: administrator definerer egendefinerte felt uten programmering.
+// Selve verdiene lagres i CustomFieldValue med samme entityType+entityId-
+// mønster som Activity/Task/Document, i stedet for én kolonne per felt på
+// fire ulike tabeller.
+model CustomFieldDefinition {
+  id         String          @id @default(uuid())
+  entityType String
+  key        String
+  label      String
+  fieldType  CustomFieldType
+  options    String[]        @default([])
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@unique([entityType, key])
+  @@map("custom_field_definitions")
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  BOOLEAN
+  SELECT
+}
+
+model CustomFieldValue {
+  id         String  @id @default(uuid())
+  entityType String
+  entityId   String
+  key        String
+  value      String?
+
+  @@unique([entityType, entityId, key])
+  @@index([entityType, entityId])
+  @@map("custom_field_values")
+}
+
+// GE-11: nøkkelbasert tilgang til det åpne REST-API-et. Selve nøkkelen vises
+// kun én gang ved opprettelse – kun en hash lagres (samme mønster som
+// passord, men uten salting-kostnad siden nøkkelen selv har høy entropi).
+model ApiKey {
+  id          String    @id @default(uuid())
+  label       String
+  hashedKey   String    @unique
+  scopes      String[]
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  createdById String?
+  lastUsedAt  DateTime?
+
+  @@map("api_keys")
 }
