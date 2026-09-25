@@ -72,8 +72,39 @@ kjøre i utvikling» over først (`next build`, `build-worker.mjs`), siden
 `dist:mac` sin `extraResources` henter fra `../.next/standalone` osv.
 
 DMG-en signeres bevisst ikke (`"identity": null` i `package.json`, jf.
-DR-16 – «DMG-en leveres usignert»). Installasjonsveiledningen (kommer i
-en senere M9-oppgave) forklarer «Åpne likevel»-varselet fra macOS.
+DR-16 – «DMG-en leveres usignert»). Se `docs/mac-mini-oppsett.md` for
+hvordan «Åpne likevel»-varselet fra macOS godkjennes.
+
+**Bekreftet i praksis** (ikke bare antatt): `npm run dist:mac` ble faktisk
+forsøkt kjørt fra denne Linux-økten, og feiler slik forventet – `dmg-
+builder` (electron-builder sin DMG-pakker) krever ubetinget `dmg-license`,
+som er markert `"os": ["darwin"]` i sin egen `package.json` og derfor
+aldri installeres på Linux. Det er altså IKKE bare `hdiutil` som mangler –
+selve avhengighetstreet til DMG-formatet nekter å laste i det hele tatt
+utenfor macOS.
+
+For likevel å sannsynliggjøre at selve INNPAKKINGEN (`extraResources`,
+`files`, appId osv. i `package.json`) er riktig satt opp, ble
+`npx electron-builder --mac dir --arm64` kjørt i stedet (target `dir`
+hopper over selve DMG-steget og lager kun en upakket `.app`, som IKKE
+krever `dmg-license`). Dette lyktes og avdekket en reell, alvorlig feil:
+
+**Oppdaget og rettet feil: utviklerens lokale `./data`-mappe ble bakt inn
+i bygget.** Next.js sin `output: 'standalone'`-filsporing evaluerer
+`process.cwd()`-baserte stier i `src/lib/storage.ts`/`src/lib/backup.ts`
+ved BYGGETIDSPUNKTET (da er cwd repo-roten), og tok da med alt som lå i
+`./data/documents` og `./data/backups` PÅ DEN MASKINEN BYGGET KJØRTE PÅ –
+i dette tilfellet denne øktens egne test-backup og test-dokumenter, men
+prinsippet er identisk for en utvikler med ekte kundedata liggende lokalt.
+Uten fiksen ville ALT som tilfeldigvis lå i `./data` blitt distribuert i
+DMG-en, uavhengig av `STORAGE_DIR`/`BACKUP_DIR` (som appen alltid setter
+til den ekte datamappen ved kjøring, se `paths.ts` – den pakkede `./data`
+leses aldri, den bare lekker). Rettet med `outputFileTracingExcludes` i
+`next.config.mjs` (utelater `./data/**/*` fra selve sporingen, roten til
+problemet) og, som ekstra sikkerhetsnett, samme `filter`-mønster som
+`.env*` allerede brukte i `extraResources` her i `package.json`. Bekreftet
+rettet: et nytt `--mac dir --arm64`-bygg inneholder verken `data/` eller
+`.env*` i `Contents/Resources/`.
 
 ## Hva som er verifisert (fra denne Linux-økten)
 

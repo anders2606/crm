@@ -32,7 +32,7 @@
       {
         "from": "../.next/standalone",
         "to": "app",
-        "filter": ["**/*", "!.env*"]
+        "filter": ["**/*", "!.env*", "!data", "!data/**/*"]
       },
       {
         "from": "../.next/static",
