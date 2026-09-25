@@ -327,13 +327,60 @@ Verifisert med en full simulert oppdateringssyklus (Playwright sin
 (forventet, ingen native varslingstjeneste her), så selve visningen er kun
 verifisert ved kodelesning, ikke i praksis.
 
+## Launchd-registrering i servermodus (DR-12) – hva som er verifisert
+
+Task #61 dekket kun mote-valget (lokal/server) i veiviseren, ikke selve
+launchd-halvparten av DR-12 («i servermodus registreres tjenestene i macOS
+launchd, slik at de starter ved oppstart og restartes automatisk ved
+krasj»). Denne oppgaven la til `services/launchd.ts` og koblet den inn i
+`completeSetup()` i `main.ts`: når veiviseren fullføres med `mode ===
+'server'`, registreres kontrollpanelet som et **LaunchAgent**
+(`~/Library/LaunchAgents`), IKKE et LaunchDaemon – et LaunchDaemon kjører
+som root uten tilgang til WindowServer/GUI-sesjonen og ville aldri klart å
+vise menylinje-ikonet (DR-11). Se `docs/mac-mini-oppsett.md` for hvorfor
+dette krever automatisk innlogging på Mac mini-en, og for manuelle
+launchctl-kommandoer hvis den automatiske registreringen skulle feile (den
+feiler ikke resten av oppsettet – bare varsler brukeren, siden en ellers
+ferdig konfigurert installasjon (admin-bruker, migrert database) ikke skal
+gå tapt på grunn av dette ene steget).
+
+- `KeepAlive` er satt til `{ SuccessfulExit: false }`: launchd restarter
+  KUN ved et krasj (avsluttet med en feilkode eller drept av et signal),
+  ikke etter et vanlig «Avslutt» fra menylinjen (som avslutter med
+  exit-kode 0) – ellers ville «Avslutt» vært virkningsløst i servermodus.
+- `LimitLoadToSessionType: Aqua` begrenser registreringen til en ekte
+  GUI-sesjon (ikke f.eks. innloggingsskjerm-sesjonen), i tråd med at appen
+  trenger WindowServer for menylinje-ikonet sitt.
+- En reinstallasjon (veiviseren kjørt på nytt på samme Mac) kaller først
+  `launchctl bootout` på en eventuell EKSISTERENDE registrering før en ny
+  `bootstrap`, for å unngå en «already bootstrapped»-feil fra launchctl.
+
+**IKKE VERIFISERT av Claude i denne utviklingsøkten** (launchctl finnes ikke
+på Linux): selve launchd-registreringen, restart-ved-krasj-oppførselen og
+at et LaunchAgent faktisk starter ved automatisk innlogging etter et
+strømbrudd. Det som ER verifisert direkte:
+
+- Selve plist-strukturen er gyldig XML (parset med et XML-bibliotek) og
+  inneholder de forventede nøklene (`Label`, `ProgramArguments`,
+  `RunAtLoad`, `KeepAlive.SuccessfulExit=false`).
+- Selve ORKESTRERINGEN (rekkefølgen og argumentene i launchctl-kallene) er
+  testet med en falsk (mock) `launchctl`-kommando på PATH som logger
+  kallene sine i stedet for å faktisk snakke med launchd: en fersk
+  registrering kaller kun `bootstrap`, en re-registrering kaller `bootout`
+  FØR `bootstrap`, `unregisterLaunchAgent()` kaller `bootout` og fjerner
+  plist-filen, og et forsøk på å avregistrere en installasjon som ALDRI har
+  vært registrert er et stille no-op (ingen launchctl-kall i det hele
+  tatt, siden ingen plist-fil finnes å lese pid/status fra).
+
 ## Hva som gjenstår på en ekte Mac
 
 - At de faktiske arm64-PostgreSQL-binærene (ikke Linux sine, som ble brukt
   i verifiseringen over) fungerer likt.
 - At `npm run dist:mac` faktisk produserer en installerbar DMG.
-- At launchd-registreringen (kommer i en senere M9-oppgave) faktisk
-  starter tjenestene ved oppstart og restarter dem ved krasj (DR-12).
+- At launchd-registreringen faktisk starter appen ved (automatisk)
+  innlogging og restarter den ved krasj (DR-12) – bygget og
+  orkestreringstestet med en falsk `launchctl`, se eget avsnitt over, men
+  ikke kjørt mot en ekte launchd.
 - At macOS sin nøkkelring faktisk lagrer/henter hemmeligheter riktig
   (DR-08).
 - Selve DR-16-akseptansekriteriet: at en ny Mac uten annen programvare kan

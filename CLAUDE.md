@@ -6,6 +6,7 @@ Eget CRM-system for Pietra Unica (marmor.no), en norsk marmorforhandler. Systeme
 
 - `docs/kravspesifikasjon.md` – fasit for alle krav (krav-ID-er, stack, datamodell, byggeplan).
 - `docs/poweroffice-apiv2-demo.json` – OpenAPI-spesifikasjon for PowerOffice Go API v2 (demo). Generer typet klient fra denne, ikke gjett endepunkter.
+- `docs/mac-mini-oppsett.md` – veiledning for å installere den usignerte DMG-en og sette opp en Mac mini som server (DR-16, DR-17).
 
 ## Arbeidsregler
 
@@ -40,5 +41,5 @@ Eier er ikke utvikler. Forklar valg og kommandoer kort og på norsk, og si tydel
 | M6 PowerOffice | Bygget – NB: PowerOffice sin produksjons-URL og ekte demo-tilkobling ikke verifisert av Claude (samme nettverksbegrensning som M3/M4), se README |
 | M7 Bilag og betalinger | Bygget (se README for detaljer og bevisst utsatte BØR/KAN-punkter) |
 | M8 Utsendelser og rapporter | Bygget (se README for detaljer og bevisst utsatt GE-12) |
-| M9 Serverpakke (DMG) | Pågår – prosessadministrasjon (DR-10/DR-11), nøkkelring (DR-08), installasjonsveiviser (DR-12/DR-13), instanslås (DR-07), eksport/import (DR-05), utvidet backup/gjenoppretting (DR-06) og oppdateringsflyt (DR-14) bygget og verifisert headless, resten gjenstår. IKKE verifisert på ekte macOS (se electron/README.md) |
+| M9 Serverpakke (DMG) | Pågår – prosessadministrasjon (DR-10/DR-11), nøkkelring (DR-08), installasjonsveiviser og launchd-registrering i servermodus (DR-12/DR-13), instanslås (DR-07), eksport/import (DR-05), utvidet backup/gjenoppretting (DR-06), oppdateringsflyt (DR-14) og veiledning for usignert DMG/Mac mini-oppsett (DR-16/DR-17) bygget og verifisert headless, kun tester og ferdigstilling gjenstår. IKKE verifisert på ekte macOS (se electron/README.md) |
 | M10 KI-modul (valgfri) | Ikke startet |

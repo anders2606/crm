@@ -12,6 +12,7 @@ import { readConfig, writeConfig, type AppConfig } from './config';
 import { runBackupNow } from './services/backup';
 import { runInstallerTasks } from './services/installer';
 import { acquireInstanceLock, releaseInstanceLock } from './services/instanceLock';
+import { registerLaunchAgent } from './services/launchd';
 import { adoptMasterKey, getOrCreateMasterKey } from './services/masterKey';
 import { runPendingMigrations } from './services/migrate';
 import { exportInstallation, importInstallation } from './services/migration';
@@ -20,7 +21,7 @@ import { notifyIfUpgraded } from './services/updateNotice';
 import { startWebServer, stopWebServer, waitForWebServerReady } from './services/webServer';
 import { startWorker, stopWorker } from './services/worker';
 import { createTray, updateTrayStatus, type TrayCallbacks } from './tray';
-import { getBackupsDir, getDocumentsDir, writeChosenDataDir } from './paths';
+import { getBackupsDir, getDocumentsDir, getLogsDir, writeChosenDataDir } from './paths';
 import { runSetupWizard } from './wizard/window';
 import type { WizardSubmission } from './wizard/preload';
 
@@ -175,6 +176,24 @@ async function completeSetup(data: WizardSubmission): Promise<void> {
   await startAppServices(databaseUrl, encryptionKey, currentPort);
 
   await writeConfig({ ...config, mode: data.mode, setupComplete: true, lastKnownVersion: app.getVersion() });
+
+  if (data.mode === 'server') {
+    // DR-12: må skje ETTER at oppsettet ellers er fullført og lagret – en
+    // feilende launchd-registrering skal ikke gjøre at brukeren mister en
+    // ellers ferdig konfigurert installasjon (administrator, database,
+    // migreringer), bare varsles om at det manuelle steget i
+    // docs/mac-mini-oppsett.md må gjøres i stedet.
+    try {
+      registerLaunchAgent(process.execPath, getLogsDir());
+    } catch (error) {
+      console.error('[main] Kunne ikke registrere launchd (DR-12):', error);
+      dialog.showErrorBox(
+        'Kunne ikke registrere automatisk oppstart',
+        'Pietra Unica CRM er satt opp og kjører, men kunne ikke registreres for automatisk oppstart/restart ' +
+          'via launchd. Se docs/mac-mini-oppsett.md for hvordan du registrerer dette manuelt.',
+      );
+    }
+  }
 }
 
 /** Vanlig oppstart etter at veiviseren allerede er gjennomført. */
