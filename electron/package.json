@@ -57,6 +57,7 @@
         "filter": ["**/*", "!client", "!client/**/*"]
       }
     ],
+    "afterPack": "scripts/afterPack.js",
     "mac": {
       "category": "public.app-category.business",
       "target": [

@@ -3,12 +3,12 @@
 // «ta backup nå»-knapp. Rotasjon til ekstern/kryptert disk og gjenoppretting
 // utvides i en senere M9-oppgave (DR-06) – dette er minimumsversjonen som
 // dekker DR-03s oppstartsrekkefølge.
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 
 import { getBackupsDir, getDocumentsDir } from '../paths';
 import { getConnectionArgs, getPgDumpBinary } from './postgres';
+import { runOrThrow } from './processUtils';
 
 const RETENTION_DAYS = 30;
 
@@ -28,7 +28,7 @@ export function runBackupNow(port: number): void {
   // migreringstabell ekskluderes – den har allerede riktig innhold fra
   // migreringene som alltid kjører før en gjenoppretting, og ville ellers
   // kollidert med constraint-feil (samme rader finnes fra før).
-  const dumpResult = spawnSync(
+  runOrThrow(
     getPgDumpBinary(),
     [
       '--data-only',
@@ -39,21 +39,15 @@ export function runBackupNow(port: number): void {
       dbFilePath,
       ...getConnectionArgs(port),
     ],
-    { stdio: 'inherit' },
+    'pg_dump',
   );
-  if (dumpResult.status !== 0) {
-    throw new Error(`pg_dump feilet med avslutningskode ${dumpResult.status}`);
-  }
 
   if (existsSync(getDocumentsDir())) {
-    const tarResult = spawnSync(
+    runOrThrow(
       'tar',
       ['-czf', filesArchivePath, '-C', path.dirname(getDocumentsDir()), path.basename(getDocumentsDir())],
-      { stdio: 'inherit' },
+      'tar',
     );
-    if (tarResult.status !== 0) {
-      throw new Error(`tar feilet med avslutningskode ${tarResult.status}`);
-    }
   }
 
   rotateOldBackups();

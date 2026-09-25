@@ -11,7 +11,6 @@
 // hemmelighetene i databasen er kryptert med KILDENS nøkkel (macOS-
 // nøkkelringen), og ville vært umulig å dekryptere igjen med en fersk,
 // tilfeldig generert nøkkel på målmaskinen.
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,6 +18,7 @@ import path from 'node:path';
 
 import { getDocumentsDir } from '../paths';
 import { getPgDumpBinary, getPgRestoreBinary, getConnectionArgs, getRestoreConnectionArgs } from './postgres';
+import { runOrThrow } from './processUtils';
 
 interface ExportManifest {
   version: 1;
@@ -46,13 +46,6 @@ function countFilesRecursive(dir: string): number {
     count += entry.isDirectory() ? countFilesRecursive(full) : 1;
   }
   return count;
-}
-
-function runOrThrow(binary: string, args: string[], failureLabel: string): void {
-  const result = spawnSync(binary, args, { stdio: 'inherit' });
-  if (result.status !== 0) {
-    throw new Error(`${failureLabel} feilet med avslutningskode ${result.status}`);
-  }
 }
 
 /**

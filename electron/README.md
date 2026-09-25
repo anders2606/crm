@@ -157,12 +157,63 @@ med en påfølgende grønn kjøring:
      men arkitekturspesifikke PostgreSQL-binærer hentet og
      `lipo`-verifisert rett før hver av dem).
 
-**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at EDB sin
-nedlasting faktisk inneholder ekte x64-binærer under samme filnavn som
-arm64-varianten (ingen arkitektur i selve URL-en) – `lipo -archs`-sjekken
-i workflowen er nettopp lagt til for å oppdage dette tydelig hvis
-antakelsen skulle vise seg feil, i stedet for å stille pakke feil
-arkitektur inn igjen.
+**Oppdatering:** `lipo -archs`-sjekken i workflowen bekreftet at EDB sin
+nedlasting faktisk er en universal (fat) binær – `postgres-binæren
+inneholder: x86_64 arm64` ble logget i den første kjøringen som bygget
+begge arkitekturene. Samme nedlasting brukes altså trygt til begge DMG-ene,
+ikke bare antatt.
+
+## Kjøring på ekte Mac-maskinvare – funn og retting
+
+Eier testet x64-DMG-en på en ekte mid-2020 MacBook Air (Intel) – den første
+faktiske kjøringen av NOE fra M9 på ekte Mac-maskinvare i dette prosjektet.
+Installasjonsveiviseren startet (Gatekeeper-godkjenningen fungerte), men
+feilet med en uforklart `initdb feilet med avslutningskode null`.
+
+**Rotårsak:** et resultat på `null` fra Node sin `spawnSync` betyr at
+prosessen ALDRI ble fullført normalt – enten klarte den aldri å starte i
+det hele tatt, eller den ble drept av et signal. De medfølgende PostgreSQL-
+binærene (`initdb`/`postgres`/`createdb`/`pg_dump`/`pg_restore`, fra EDB)
+er helt usignerte. macOS nekter å kjøre en usignert binærfil i det hele
+tatt når den startes programmatisk via `spawn()` – og «Åpne likevel»-
+godkjenningen brukeren gir for selve `.app`-pakken (DR-16) dekker KUN
+LaunchServices sin oppstart av selve appen, ikke løse binærfiler appen
+senere kjører internt.
+
+**Rettet på to nivåer:**
+
+1. **Root cause:** ny `electron/scripts/afterPack.js`, registrert som
+   electron-builder sin `afterPack`-hook, ad-hoc-signerer
+   (`codesign --force --sign -`) alle filene i
+   `Contents/Resources/postgres/bin/` etter pakking, for begge
+   arkitekturer. En ad-hoc-signatur (ingen ekte sertifikat) er nok til at
+   macOS godtar å kjøre dem – i tråd med at appen uansett allerede er
+   bevisst usignert i sin helhet. Verifisert med en falsk `codesign`-
+   kommando på PATH (samme mønster som launchd-testene): hooken finner og
+   «signerer» riktig alle fem binærene, og er et trygt no-op på Linux
+   (`process.platform !== 'darwin'`), så den ikke ødelegger de lokale
+   `--mac dir`-testbyggene i denne økten.
+2. **Bedre feilmeldinger uansett årsak:** alle stedene som kjører eksterne
+   binærer synkront (`initdb` i `postgres.ts`, `prisma migrate deploy` i
+   `migrate.ts`, `pg_dump`/`tar` i `backup.ts`, `pg_dump`/`pg_restore`/
+   `cp`/`tar` i `migration.ts`) brukte `stdio: 'inherit'`, som i en
+   dobbeltklikket GUI-app (ingen synlig terminal) sender all diagnostikk et
+   sted brukeren aldri ser den – bare et bart avslutningskode-tall gjensto.
+   Samlet i en ny delt `services/processUtils.ts` (`runOrThrow`) som
+   fanger opp og skiller mellom tre reelle feilsituasjoner: prosessen kunne
+   ikke startes i det hele tatt (`result.error`, f.eks. «finnes ikke»/
+   «ingen kjøretillatelse»), den ble drept av et signal (`result.signal` –
+   nettopp det som skjedde her, med en eksplisitt henvisning til usignerte
+   binærfiler i selve feilteksten), eller den kjørte og avsluttet med en
+   ekte feilkode (inkluderer da fangets stdout/stderr i feilmeldingen).
+   Verifisert direkte (ikke bare lest): alle tre feilveiene og den normale
+   suksessveien gir riktig resultat.
+
+**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at ad-hoc-signering
+faktisk løser problemet i praksis – det kan kun bekreftes ved at eier
+prøver en ny DMG bygget med denne fiksen. Hvis `initdb` fortsatt feiler
+etter dette, vil den nye feilmeldingen (signal eller faktisk feiltekst fra
+initdb selv) fortelle langt mer enn «avslutningskode null» gjorde.
 
 ## Hva som er verifisert (fra denne Linux-økten)
 

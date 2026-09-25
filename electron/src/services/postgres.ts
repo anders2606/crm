@@ -10,6 +10,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 
 import { getDatabaseDataDir, getPostgresBinDir } from '../paths';
+import { runOrThrow } from './processUtils';
 
 const DATABASE_NAME = 'pietra_unica_crm';
 const SUPERUSER = 'postgres';
@@ -28,12 +29,7 @@ export function isClusterInitialized(): boolean {
 
 export function initializeCluster(): void {
   mkdirSync(getDatabaseDataDir(), { recursive: true });
-  const result = spawnSync(bin('initdb'), ['-D', getDatabaseDataDir(), '-U', SUPERUSER, '--auth=trust', '--encoding=UTF8'], {
-    stdio: 'inherit',
-  });
-  if (result.status !== 0) {
-    throw new Error(`initdb feilet med avslutningskode ${result.status}`);
-  }
+  runOrThrow(bin('initdb'), ['-D', getDatabaseDataDir(), '-U', SUPERUSER, '--auth=trust', '--encoding=UTF8'], 'initdb');
 }
 
 let postgresProcess: ChildProcessWithoutNullStreams | null = null;
