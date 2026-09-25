@@ -53,6 +53,24 @@ export async function getOrCreateMasterKey(): Promise<string> {
   return hexKey;
 }
 
+/**
+ * DR-05: erstatter masternøkkelen med en importert verdi (fra en eksport
+ * tatt på en annen installasjon), slik at hemmelighetene (PowerOffice-/
+ * e-postkonto-nøkler) som fulgte med i den importerte databasen fortsatt
+ * kan dekrypteres på denne maskinen – de ble kryptert med KILDENS nøkkel,
+ * ikke en fersk nøkkel denne installasjonen ellers ville generert selv.
+ */
+export async function adoptMasterKey(hexKey: string): Promise<void> {
+  if (!/^[0-9a-f]{64}$/i.test(hexKey)) {
+    throw new Error('Krypteringsnøkkelen i eksportfilen har feil format.');
+  }
+  const filePath = getMasterKeyFilePath();
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const keychainAvailable = safeStorage.isEncryptionAvailable();
+  const toWrite = keychainAvailable ? safeStorage.encryptString(hexKey) : Buffer.from(hexKey, 'utf8');
+  await fs.writeFile(filePath, toWrite);
+}
+
 async function readExistingKey(filePath: string, keychainAvailable: boolean): Promise<string | null> {
   let stored: Buffer;
   try {

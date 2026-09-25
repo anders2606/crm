@@ -13,6 +13,7 @@ export interface TrayCallbacks {
   onStart: () => Promise<void>;
   onStop: () => Promise<void>;
   onBackupNow: () => Promise<void>;
+  onExport: () => Promise<void>;
   getWebPort: () => number;
 }
 
@@ -74,6 +75,13 @@ export function rebuildMenu(callbacks: TrayCallbacks): void {
     {
       label: 'Ta backup nå',
       click: () => callbacks.onBackupNow(),
+    },
+    {
+      // DR-05: pakker database+dokumenter+nøkler i én fil for flytting til
+      // en annen installasjon (typisk lokal modus → Mac mini).
+      label: 'Eksporter for flytting …',
+      enabled: webRunning,
+      click: () => callbacks.onExport(),
     },
     {
       label: 'Vis logger',

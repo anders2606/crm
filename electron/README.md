@@ -174,6 +174,59 @@ oppstartskjeden med to samtidige, ekte konkurrerende Electron-instanser (to
 fulle GPU/Postgres/web-server-stabler samtidig i denne sandkassens Xvfb var
 upålitelig av rene ressursgrunner, ikke en svakhet i selve låsen).
 
+## Full eksport/import mellom lokal modus og Mac mini (DR-05) – hva som er verifisert
+
+`src/services/migration.ts` pakker en installasjon til ÉN `.tar.gz`-fil
+(«Eksporter for flytting …» i menylinjen) og gjenoppretter den igjen på en
+annen installasjon (et nytt punkt i installasjonsveiviseren: «Importer
+database, dokumenter og nøkler fra en eksportfil»). Filen inneholder:
+
+- `database.dump` – KUN data (`pg_dump --data-only --format=custom`), ikke
+  skjema: skjemaet lages uansett alltid på nytt av Prisma-migreringene på
+  målmaskinen, så å flytte bare dataene unngår versjonskrøll.
+- `documents/` – hele dokumentmappen.
+- `master-key.txt` – kildens masternøkkel (DR-08). Uten denne ville
+  PowerOffice-/e-postkonto-hemmelighetene i den importerte databasen vært
+  umulige å dekryptere igjen, siden de er kryptert med KILDENS nøkkel, ikke
+  en fersk nøkkel målmaskinen ellers ville generert selv. Importen
+  overskriver derfor målmaskinens masternøkkel med denne.
+- `manifest.json` – tidspunkt, antall dokumenter og en sha256-sjekksum av
+  databasedumpen, som importen kontrollerer FØR noe skrives til den ekte
+  databasen/datamappen (DR-05 sitt «kontroll av at alt er med»).
+
+Verifisert direkte (to separate, ekte PostgreSQL-klynger som kilde/mål, en
+ekte kjørende Electron-prosess for selve eksport-/importkallene):
+
+- En full eksport→import-runde beholder en kunde, en admin-bruker OG en
+  kryptert PowerOffice-nøkkel som fortsatt dekrypteres riktig med den
+  importerte nøkkelen, samt begge testdokumentene (inkl. et i en
+  underundermappe) med riktig innhold – alt sammen på målsiden, som startet
+  som en helt tom, kun migrert database.
+- En arkivfil som ikke kan pakkes ut (skadet gzip) avvises umiddelbart.
+- En arkivfil med en tuklet `database.dump` (men ellers gyldig) avvises av
+  sjekksumkontrollen FØR noe skrives til databasen – bekreftet ved at
+  målets kundetabell fortsatt var tom etterpå.
+
+Underveis fant og rettet denne verifiseringen én reell feil: `cp -R` med
+kildeargumentet bygget via `path.join(kilde, '.')` kopierte selve
+kildemappen (ikke bare innholdet) inn i en allerede eksisterende
+destinasjon, siden `path.join` normaliserer bort den avsluttende `.` – ga
+en dobbel-nestet `documents/documents/...`-struktur i arkivet. Rettet med
+en egen `copyDirContents()`-hjelpefunksjon som bygger kildeargumentet som
+en ren streng i stedet.
+
+I samme slengen ble det også oppdaget (og rettet) at web-serveren/workeren
+aldri fikk `STORAGE_DIR` satt i det hele tatt – dokumenter ville dermed
+blitt lagret inni selve app-bunten i stedet for datamappen, noe som ville
+ha gått tapt ved neste oppdatering (DR-14) OG ikke blitt tatt med i en
+eksport i det hele tatt.
+
+**IKKE testet:** selve veiviser-UI-et for import (filvelgeren bruker en
+native macOS-dialog som ikke kan styres fra denne Linux-sandkassen) – kun
+logikken bak (`exportInstallation`/`importInstallation`/`adoptMasterKey`)
+er verifisert direkte. Se `src/wizard/wizard.html` sitt import-avkrysningsfelt
+på steg 1.
+
 ## Hva som gjenstår på en ekte Mac
 
 - At de faktiske arm64-PostgreSQL-binærene (ikke Linux sine, som ble brukt
@@ -182,8 +235,16 @@ upålitelig av rene ressursgrunner, ikke en svakhet i selve låsen).
 - At launchd-registreringen (kommer i en senere M9-oppgave) faktisk
   starter tjenestene ved oppstart og restarter dem ved krasj (DR-12).
 - At macOS sin nøkkelring faktisk lagrer/henter hemmeligheter riktig
-  (DR-08, egen M9-oppgave).
+  (DR-08).
 - Selve DR-16-akseptansekriteriet: at en ny Mac uten annen programvare kan
   installere og kjøre DMG-en.
 - Et ekte menylinje-ikon (`resources/trayTemplate.png` er i dag en
   1×1-plassholder, se kommentaren i `src/tray.ts`).
+- **Oppdaget, men IKKE rettet i denne økten** (utenfor DR-05 sitt omfang):
+  `webServer.ts` binder alltid til `127.0.0.1`, uansett `mode`
+  ('local'/'server') i `config.json`. Wizarden lar brukeren velge
+  servermodus med teksten «alle på kontornettet», men servermodus har i dag
+  ingen faktisk funksjonell forskjell fra lokal modus bortsett fra
+  metadataen som lagres – web-serveren er IKKE nåbar fra andre maskiner på
+  nettverket ennå. Bør rettes (trolig `HOSTNAME: config.mode === 'server' ?
+  '0.0.0.0' : '127.0.0.1'`) når launchd-/servermodus-oppgaven tas fatt.

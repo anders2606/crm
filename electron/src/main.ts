@@ -12,13 +12,14 @@ import { readConfig, writeConfig, type AppConfig } from './config';
 import { runBackupNow } from './services/backup';
 import { runInstallerTasks } from './services/installer';
 import { acquireInstanceLock, releaseInstanceLock } from './services/instanceLock';
-import { getOrCreateMasterKey } from './services/masterKey';
+import { adoptMasterKey, getOrCreateMasterKey } from './services/masterKey';
 import { runPendingMigrations } from './services/migrate';
+import { exportInstallation, importInstallation } from './services/migration';
 import { buildDatabaseUrl, ensureDatabaseExists, isPostgresBundled, startPostgres, stopPostgres } from './services/postgres';
 import { startWebServer, stopWebServer, waitForWebServerReady } from './services/webServer';
 import { startWorker, stopWorker } from './services/worker';
 import { createTray, updateTrayStatus, type TrayCallbacks } from './tray';
-import { writeChosenDataDir } from './paths';
+import { getDocumentsDir, writeChosenDataDir } from './paths';
 import { runSetupWizard } from './wizard/window';
 import type { WizardSubmission } from './wizard/preload';
 
@@ -33,6 +34,8 @@ if (!gotSingleInstanceLock) {
 app.dock?.hide();
 
 let currentPort = 3000;
+let currentPostgresPort = 55432;
+let currentEncryptionKey: string | null = null;
 let trayCallbacks: TrayCallbacks;
 
 /** DR-03: start database, ta backup, kjør migreringer. Felles for både veiviseren og vanlig oppstart. */
@@ -40,6 +43,7 @@ async function prepareDatabase(config: AppConfig): Promise<{ databaseUrl: string
   // DR-07: må skje FØR PostgreSQL startes – to samtidige PostgreSQL-
   // instanser mot de samme datafilene kan korrumpere dem.
   acquireInstanceLock();
+  currentPostgresPort = config.postgresPort;
 
   await startPostgres(config.postgresPort);
   ensureDatabaseExists(config.postgresPort);
@@ -66,10 +70,44 @@ async function prepareDatabase(config: AppConfig): Promise<{ databaseUrl: string
  * sitt.
  */
 async function startAppServices(databaseUrl: string, encryptionKey: string, port: number): Promise<void> {
-  const sharedEnv = { DATABASE_URL: databaseUrl, ENCRYPTION_KEY: encryptionKey, NODE_ENV: 'production' };
+  // DO-08: uten STORAGE_DIR lagrer web-serveren dokumenter relativt til sin
+  // egen cwd (inni selve app-bunten) i stedet for i datamappen – som ville
+  // blitt slettet ved neste oppdatering (DR-14) og ikke tatt med i
+  // eksport/import (DR-05) eller backup (DR-06).
+  const sharedEnv = {
+    DATABASE_URL: databaseUrl,
+    ENCRYPTION_KEY: encryptionKey,
+    STORAGE_DIR: getDocumentsDir(),
+    NODE_ENV: 'production',
+  };
   startWebServer(sharedEnv, port);
   startWorker(sharedEnv);
   await waitForWebServerReady(port);
+  currentEncryptionKey = encryptionKey;
+}
+
+/**
+ * DR-05: importgrenen av førstegangsoppsettet – gjenoppretter database,
+ * dokumenter og masternøkkel fra en eksportfil laget av `exportInstallation`
+ * på en ANNEN installasjon, i stedet for å opprette en helt ny administrator.
+ * Databasen må migreres til et tomt skjema FØR importen kjøres (samme
+ * migreringer som alltid kjører ved oppstart, se `prepareDatabase`), men
+ * uten den vanlige `getOrCreateMasterKey()` (som ville generert en FERSK
+ * nøkkel her, ikke den importerte som de innkommende hemmelighetene faktisk
+ * er kryptert med) eller en oppstartsbackup (databasen er jo fortsatt tom).
+ */
+async function completeImport(config: AppConfig, archivePath: string): Promise<{ databaseUrl: string; encryptionKey: string }> {
+  acquireInstanceLock();
+  currentPostgresPort = config.postgresPort;
+  await startPostgres(config.postgresPort);
+  ensureDatabaseExists(config.postgresPort);
+  const databaseUrl = buildDatabaseUrl(config.postgresPort);
+  runPendingMigrations(databaseUrl);
+
+  const { encryptionKey } = importInstallation(archivePath, config.postgresPort);
+  await adoptMasterKey(encryptionKey);
+
+  return { databaseUrl, encryptionKey };
 }
 
 /** DR-13: kjøres kun ved førstegangsoppsett – etter dette er setupComplete satt. */
@@ -81,9 +119,17 @@ async function completeSetup(data: WizardSubmission): Promise<void> {
   }
 
   const config = await readConfig();
-  const { databaseUrl, encryptionKey } = await prepareDatabase(config);
 
-  runInstallerTasks(data.admin, data.poweroffice, { DATABASE_URL: databaseUrl, ENCRYPTION_KEY: encryptionKey });
+  const { databaseUrl, encryptionKey } = data.importArchivePath
+    ? await completeImport(config, data.importArchivePath)
+    : await prepareDatabase(config);
+
+  if (!data.importArchivePath) {
+    if (!data.admin) {
+      throw new Error('Administratoropplysninger mangler.');
+    }
+    runInstallerTasks(data.admin, data.poweroffice, { DATABASE_URL: databaseUrl, ENCRYPTION_KEY: encryptionKey });
+  }
 
   currentPort = config.webPort;
   await startAppServices(databaseUrl, encryptionKey, currentPort);
@@ -129,6 +175,29 @@ app.whenReady().then(async () => {
     onBackupNow: async () => {
       const config = await readConfig();
       runBackupNow(config.postgresPort);
+    },
+    onExport: async () => {
+      // DR-05: eksporterer denne installasjonen for flytting til en annen
+      // (typisk lokal modus → Mac mini). Trenger både postgres og
+      // masternøkkelen å eksportere med, altså at tjenestene faktisk kjører.
+      if (!currentEncryptionKey) {
+        dialog.showErrorBox('Kan ikke eksportere', 'Tjenestene må kjøre (se «Start» i menyen) før eksport.');
+        return;
+      }
+      const result = await dialog.showSaveDialog({
+        title: 'Eksporter Pietra Unica CRM',
+        defaultPath: `pietra-unica-eksport-${new Date().toISOString().slice(0, 10)}.tar.gz`,
+        filters: [{ name: 'Pietra Unica-eksport', extensions: ['tar.gz'] }],
+      });
+      if (result.canceled || !result.filePath) {
+        return;
+      }
+      try {
+        exportInstallation(currentPostgresPort, currentEncryptionKey, result.filePath);
+        dialog.showMessageBox({ type: 'info', message: 'Eksport fullført', detail: result.filePath });
+      } catch (error) {
+        dialog.showErrorBox('Eksport feilet', error instanceof Error ? error.message : String(error));
+      }
     },
     getWebPort: () => currentPort,
   };

@@ -23,7 +23,7 @@
 </head>
 <body>
   <h1>Sett opp Pietra Unica CRM</h1>
-  <p class="lead">Trinn <span id="stepNumber">1</span> av 3</p>
+  <p class="lead">Trinn <span id="stepNumber">1</span> av <span id="stepTotal">3</span></p>
 
   <div class="step active" data-step="1">
     <label>Modus</label>
@@ -37,6 +37,18 @@
       <input id="dataDir" readonly />
       <button id="chooseDataDir" type="button">Velg mappe …</button>
     </div>
+
+    <fieldset>
+      <legend>Flytting fra en annen installasjon (DR-05)</legend>
+      <label style="display: flex; align-items: center; gap: 6px; font-weight: normal;">
+        <input type="checkbox" id="isImport" style="width: auto;" />
+        Importer database, dokumenter og nøkler fra en eksportfil i stedet for å sette opp fra nytt
+      </label>
+      <div id="importFileRow" class="row" style="display: none; margin-top: 8px;">
+        <input id="importFile" readonly placeholder="Ingen fil valgt" />
+        <button id="chooseImportFile" type="button">Velg eksportfil …</button>
+      </div>
+    </fieldset>
   </div>
 
   <div class="step" data-step="2">
@@ -78,19 +90,33 @@
 
   <script>
     let step = 1;
-    const totalSteps = 3;
+
+    function isImportMode() {
+      return document.getElementById('isImport').checked;
+    }
+
+    // Ved import kommer administrator/PowerOffice-nøkler allerede med i
+    // den importerte databasen – da trengs ikke steg 2/3 i det hele tatt.
+    function getTotalSteps() {
+      return isImportMode() ? 1 : 3;
+    }
 
     function showStep(n) {
+      const totalSteps = getTotalSteps();
       document.querySelectorAll('.step').forEach((el) => el.classList.toggle('active', Number(el.dataset.step) === n));
       document.getElementById('stepNumber').textContent = String(n);
+      document.getElementById('stepTotal').textContent = String(totalSteps);
       document.getElementById('back').style.visibility = n === 1 ? 'hidden' : 'visible';
       document.getElementById('next').textContent = n === totalSteps ? 'Fullfør' : 'Neste';
       document.getElementById('error').textContent = '';
     }
 
     function validateStep(n) {
-      if (n === 1 && !document.getElementById('dataDir').value) {
-        return 'Velg en datamappe før du går videre.';
+      if (n === 1) {
+        if (!document.getElementById('dataDir').value) return 'Velg en datamappe før du går videre.';
+        if (isImportMode() && !document.getElementById('importFile').value) {
+          return 'Velg eksportfilen du vil importere fra.';
+        }
       }
       if (n === 2) {
         if (!document.getElementById('adminName').value.trim()) return 'Fyll inn administratorens navn.';
@@ -99,6 +125,18 @@
       }
       return null;
     }
+
+    document.getElementById('isImport').addEventListener('change', (event) => {
+      document.getElementById('importFileRow').style.display = event.target.checked ? 'flex' : 'none';
+      showStep(step);
+    });
+
+    document.getElementById('chooseImportFile').addEventListener('click', async () => {
+      const chosen = await window.wizardAPI.chooseImportFile();
+      if (chosen) {
+        document.getElementById('importFile').value = chosen;
+      }
+    });
 
     async function init() {
       document.getElementById('dataDir').value = await window.wizardAPI.getDefaultDataDir();
@@ -125,35 +163,45 @@
         return;
       }
 
+      const totalSteps = getTotalSteps();
       if (step < totalSteps) {
         step += 1;
         showStep(step);
         return;
       }
 
-      const poApplicationKey = document.getElementById('poApplicationKey').value.trim();
-      const poClientKey = document.getElementById('poClientKey').value.trim();
-      const poSubscriptionKey = document.getElementById('poSubscriptionKey').value.trim();
-      const hasPowerOffice = poApplicationKey || poClientKey || poSubscriptionKey;
+      let payload;
+      if (isImportMode()) {
+        payload = {
+          mode: document.getElementById('mode').value,
+          dataDir: document.getElementById('dataDir').value,
+          importArchivePath: document.getElementById('importFile').value,
+        };
+      } else {
+        const poApplicationKey = document.getElementById('poApplicationKey').value.trim();
+        const poClientKey = document.getElementById('poClientKey').value.trim();
+        const poSubscriptionKey = document.getElementById('poSubscriptionKey').value.trim();
+        const hasPowerOffice = poApplicationKey || poClientKey || poSubscriptionKey;
 
-      const payload = {
-        mode: document.getElementById('mode').value,
-        dataDir: document.getElementById('dataDir').value,
-        admin: {
-          name: document.getElementById('adminName').value.trim(),
-          email: document.getElementById('adminEmail').value.trim(),
-          password: document.getElementById('adminPassword').value,
-        },
-        poweroffice: hasPowerOffice
-          ? {
-              environment: document.getElementById('poEnvironment').value,
-              applicationKey: poApplicationKey || undefined,
-              clientKey: poClientKey || undefined,
-              subscriptionKey: poSubscriptionKey || undefined,
-              invoiceReceiptEmail: document.getElementById('poInvoiceReceiptEmail').value.trim() || undefined,
-            }
-          : undefined,
-      };
+        payload = {
+          mode: document.getElementById('mode').value,
+          dataDir: document.getElementById('dataDir').value,
+          admin: {
+            name: document.getElementById('adminName').value.trim(),
+            email: document.getElementById('adminEmail').value.trim(),
+            password: document.getElementById('adminPassword').value,
+          },
+          poweroffice: hasPowerOffice
+            ? {
+                environment: document.getElementById('poEnvironment').value,
+                applicationKey: poApplicationKey || undefined,
+                clientKey: poClientKey || undefined,
+                subscriptionKey: poSubscriptionKey || undefined,
+                invoiceReceiptEmail: document.getElementById('poInvoiceReceiptEmail').value.trim() || undefined,
+              }
+            : undefined,
+        };
+      }
 
       document.getElementById('next').disabled = true;
       document.getElementById('next').textContent = 'Setter opp …';

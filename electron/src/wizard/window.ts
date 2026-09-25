@@ -29,6 +29,7 @@ export function runSetupWizard(onSubmit: (data: WizardSubmission) => Promise<voi
     function cleanupHandlers(): void {
       ipcMain.removeHandler('wizard:get-default-data-dir');
       ipcMain.removeHandler('wizard:choose-data-dir');
+      ipcMain.removeHandler('wizard:choose-import-file');
       ipcMain.removeHandler('wizard:submit');
     }
 
@@ -36,6 +37,18 @@ export function runSetupWizard(onSubmit: (data: WizardSubmission) => Promise<voi
 
     ipcMain.handle('wizard:choose-data-dir', async () => {
       const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });
+      if (result.canceled || result.filePaths.length === 0) {
+        return null;
+      }
+      return result.filePaths[0];
+    });
+
+    // DR-05: velg en eksportfil laget av en annen installasjon.
+    ipcMain.handle('wizard:choose-import-file', async () => {
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile'],
+        filters: [{ name: 'Pietra Unica-eksport', extensions: ['tar.gz', 'gz'] }],
+      });
       if (result.canceled || result.filePaths.length === 0) {
         return null;
       }

@@ -59,6 +59,14 @@ export function acquireInstanceLock(): void {
   const existing = existsSync(lockPath) ? readLockInfo(lockPath) : null;
 
   if (existing) {
+    if (existing.pid === process.pid && existing.hostname === hostname()) {
+      // Denne prosessen tok allerede låsen selv (f.eks. et mislykket
+      // oppstartsforsøk fra tjenestepanelet ble prøvd på nytt) – ikke avvis
+      // seg selv, bare skriv en fersk tidsstempel.
+      writeFileSync(lockPath, JSON.stringify({ ...existing, startedAt: new Date().toISOString() }, null, 2), 'utf8');
+      return;
+    }
+
     const sameMachine = existing.hostname === hostname();
     if (!sameMachine) {
       throw new Error(

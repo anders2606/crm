@@ -132,6 +132,16 @@ export function getConnectionArgs(port: number): string[] {
   return ['-h', 'localhost', '-p', String(port), '-U', SUPERUSER, DATABASE_NAME];
 }
 
+/**
+ * Tilkoblingsargumenter for pg_restore – ULIKT pg_dump/createdb (som tar
+ * databasenavnet som et vanlig positional siste argument), forventer
+ * pg_restore navnet via `-d`. Siste positional argument til pg_restore er
+ * i stedet selve arkivfilen som skal gjenopprettes.
+ */
+export function getRestoreConnectionArgs(port: number): string[] {
+  return ['-h', 'localhost', '-p', String(port), '-U', SUPERUSER, '-d', DATABASE_NAME];
+}
+
 export function getPgDumpBinary(): string {
   return bin('pg_dump');
 }
