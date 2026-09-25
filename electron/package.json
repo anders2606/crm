@@ -52,7 +52,8 @@
       },
       {
         "from": "../node_modules/@prisma",
-        "to": "app/node_modules/@prisma"
+        "to": "app/node_modules/@prisma",
+        "filter": ["**/*", "!client", "!client/**/*"]
       }
     ],
     "mac": {
