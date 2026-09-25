@@ -264,12 +264,47 @@ plassering – uavhengig av hvor selve `.app`-bunten ligger eller er
 problemer for appens EGEN databaselogikk, kun vises i stier til ting INNI
 selve `.app`-bunten slik som her.
 
-**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at `share/`-fiksen
-faktisk er den siste brikken – kan igjen kun bekreftes ved at eier prøver
-en ny DMG. Mønsteret så langt (binærer → biblioteker → referansedata) er
-alle sidestilte mapper PostgreSQL sin egen relokerbare oppsett forventer;
-hvis noe fortsatt mangler, vil samme `otool -L`/selvsjekk-tilnærming
-brukes til å finne det, i stedet for å gjette.
+**Bekreftet:** `share/`-fiksen virket – `initdb` fullførte denne gangen
+(eier fikk feilen under fra selve `prisma migrate deploy`-steget som kjører
+RETT ETTER `initdb`, altså etter at PostgreSQL faktisk var initialisert OG
+startet og lyttet på riktig port).
+
+**Runde 4:** `Databasemigrering feilet med avslutningskode 1: ... Could not
+find schema-engine binary`. En HELT ANNEN binærfil enn alt hittil – Prisma
+sin egen `schema-engine` (brukt av `prisma migrate deploy`, atskilt fra
+`@prisma/client` sin spørremotor som `binaryTargets` i `schema.prisma`
+allerede dekker for alle tre plattformer). Rotårsak: `npm ci` i workflowen
+laster automatisk ned schema-engine-binæren, men KUN for VERTSMASKINENS
+egen arkitektur (denne macOS-runneren er arm64) – i motsetning til
+spørremotoren finnes ingen `binaryTargets`-lignende innstilling for denne,
+så x64-DMG-en fikk aldri sin egen variant.
+
+**Rettet på to nivåer denne gangen:**
+
+1. Et nytt steg i `.github/workflows/build-dmg.yml` laster ned BEGGE
+   variantene (`darwin` og `darwin-arm64`) direkte fra Prisma sin egen
+   binær-CDN (`https://binaries.prisma.sh/all_commits/<engines-hash>/...`
+   – samme mekanisme `npm install` selv bruker internt, se
+   `node_modules/@prisma/fetch-engine`), og legger dem begge i
+   `node_modules/@prisma/engines/` (de kan trygt ligge side om side,
+   akkurat som spørremotorene). Bekreftet i praksis fra denne
+   Linux-økten (samme CDN-domene er nådbart herfra, i motsetning til
+   EDB/Azure): begge nedlastingene er ekte, korrekte Mach-O-binærfiler
+   (`file` bekrefter `x86_64` og `arm64` for hver sin variant).
+2. **Generalisert selve signeringen** i stedet for å fortsette å legge til
+   ett spesialtilfelle om gangen (dette var fjerde runde med nøyaktig
+   samme rotfeilmønster – en usignert native binærfil – bare hver gang for
+   en ny, ukjent fil): `scripts/afterPack.js` signerer nå HELE `.app`-
+   bunten rekursivt, ikke bare `postgres/bin`+`postgres/lib`. En enkel
+   heuristikk (filendelse `.dylib`/`.so`/`.node`, ELLER ingen filendelse
+   kombinert med kjøretillatelse) skiller native binærfiler fra de tusenvis
+   av vanlige JS/JSON-filer i `node_modules` uten å måtte signere dem alle
+   – dette fanger automatisk opp `schema-engine-darwin` (og enhver
+   fremtidig, ennå ukjent tilsvarende avhengighet) uten en femte runde.
+
+**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at dette faktisk er
+den siste manglende brikken – kan igjen kun bekreftes ved at eier prøver en
+ny DMG.
 
 ## Hva som er verifisert (fra denne Linux-økten)
 

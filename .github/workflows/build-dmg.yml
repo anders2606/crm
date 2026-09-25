@@ -84,6 +84,38 @@ jobs:
           SESSION_SECRET: ci-dmg-build-not-for-production
           SEED_ADMIN_PASSWORD: ci-dmg-build-not-for-production
 
+      # `npm ci` (over) lastet bare ned Prisma sin "schema-engine" (brukt av
+      # `prisma migrate deploy` - en HELT ANNEN binærfil enn @prisma/client
+      # sin spørremotor, som binaryTargets over dekker) for VERTSMASKINENS
+      # EGEN arkitektur (denne macOS-runneren er arm64), ikke begge - i
+      # motsetning til spørremotoren finnes det ingen binaryTargets-lignende
+      # innstilling for denne. Ekte feil oppdaget av eier: "Could not find
+      # schema-engine binary" i x64-DMG-en, ETTER at signering+lib/+share/
+      # var på plass (migreringen kjørte da faktisk mot en ekte, startet
+      # PostgreSQL - selve schema-engine-binæren manglet bare helt for
+      # denne arkitekturen). Henter begge eksplisitt fra Prisma sin egen
+      # binær-CDN (samme mekanisme `npm install` selv bruker, se
+      # node_modules/@prisma/fetch-engine), og legger dem i BEGGE
+      # (schema-engine-darwin og schema-engine-darwin-arm64 kan trygt ligge
+      # side om side samtidig - akkurat som spørremotorene i
+      # node_modules/.prisma/client/), slik at riktig fil finnes uansett
+      # hvilken av de to DMG-ene som pakkes fra det etterpå.
+      - name: Hent Prisma sin schema-engine for begge arkitekturer
+        run: |
+          set -euo pipefail
+          HASH="$(node -e "console.log(require('@prisma/engines-version').enginesVersion)")"
+          echo "Prisma engines-hash: $HASH"
+          mkdir -p node_modules/@prisma/engines
+          for platform in darwin darwin-arm64; do
+            url="https://binaries.prisma.sh/all_commits/${HASH}/${platform}/schema-engine.gz"
+            echo "Henter $url"
+            curl -fSL --retry 2 --max-time 120 -o /tmp/schema-engine.gz "$url"
+            gunzip -c /tmp/schema-engine.gz > "node_modules/@prisma/engines/schema-engine-${platform}"
+            chmod +x "node_modules/@prisma/engines/schema-engine-${platform}"
+            rm -f /tmp/schema-engine.gz
+            file "node_modules/@prisma/engines/schema-engine-${platform}"
+          done
+
       # DR-10: relokerbare PostgreSQL-binærer som skal FØLGE MED i selve
       # appen - se electron/resources/postgres/README.md for hvorfor det må
       # være EDB sin binærdistribusjon og ikke Homebrew (Homebrew sine
