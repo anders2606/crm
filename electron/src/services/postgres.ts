@@ -60,10 +60,18 @@ export function startPostgres(port: number): Promise<void> {
     );
 
     let started = false;
+    // PostgreSQL sin egen forklaring på HVORFOR den ikke klarte å starte
+    // (f.eks. «Address already in use» fra en gjenglemt postgres-prosess fra
+    // en tidligere kjøring, eller en ugyldig datamappe) skrives til
+    // stdout/stderr FØR den avslutter – uten å ta vare på denne teksten her
+    // fikk brukeren tidligere kun et bart «avsluttet uventet (kode 1)», med
+    // ingen antydning om den faktiske årsaken.
+    let output = '';
     const onOutput = (chunk: Buffer) => {
+      output += chunk.toString();
       // PostgreSQL gir ikke noe annet signal om vellykket oppstart enn denne
       // linjen i loggen – det er den vanlige måten å oppdage det på.
-      if (!started && chunk.toString().includes('ready to accept connections')) {
+      if (!started && output.includes('ready to accept connections')) {
         started = true;
         resolve();
       }
@@ -78,7 +86,12 @@ export function startPostgres(port: number): Promise<void> {
     postgresProcess.on('exit', (code) => {
       postgresProcess = null;
       if (!started) {
-        reject(new Error(`PostgreSQL avsluttet uventet (kode ${code}) før oppstart var ferdig`));
+        const trimmedOutput = output.trim();
+        reject(
+          new Error(
+            `PostgreSQL avsluttet uventet (kode ${code}) før oppstart var ferdig${trimmedOutput ? `:\n${trimmedOutput}` : ''}`,
+          ),
+        );
       }
     });
   });

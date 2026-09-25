@@ -302,9 +302,33 @@ så x64-DMG-en fikk aldri sin egen variant.
    – dette fanger automatisk opp `schema-engine-darwin` (og enhver
    fremtidig, ennå ukjent tilsvarende avhengighet) uten en femte runde.
 
-**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at dette faktisk er
-den siste manglende brikken – kan igjen kun bekreftes ved at eier prøver en
-ny DMG.
+**Bekreftet:** schema-engine-fiksen virket – `prisma migrate deploy` kjørte
+denne gangen (eier fikk feilen under et STEG SENERE: en ny oppstart av
+selve `postgres`-serverprosessen, ikke migreringen).
+
+**Runde 5:** `PostgreSQL avsluttet uventet (kode 1) før oppstart var
+ferdig` – uten noen forklaring på HVORFOR, siden `services/postgres.ts` sin
+`startPostgres()` (asynkron `spawn()`, ulikt de synkrone `spawnSync()`-
+kallene `processUtils.ts` allerede fanger opp bedre) aldri tok vare på
+PostgreSQL sin egen stdout/stderr-tekst før den avsluttet – akkurat samme
+type diagnostikk-hull som `initdb` hadde i runde 1, bare i en annen
+funksjon. Rettet: `startPostgres()` samler nå opp all utdata underveis og
+inkluderer den i feilmeldingen ved en uventet avslutning. Verifisert
+direkte med en falsk `postgres`-kommando som skriver en realistisk
+«Address already in use»-feil til stderr og avslutter med kode 1 –
+feilmeldingen inneholder nå denne teksten ordrett i stedet for bare koden.
+
+**Mest sannsynlige årsak** (ikke bekreftet, kun en velbegrunnet gjetning
+inntil den forbedrede feilmeldingen bekrefter eller avkrefter den neste
+gang): gjentatte testforsøk med flere DMG-er etter hverandre kan ha
+etterlatt en foreldreløs `postgres`-prosess fra et TIDLIGERE forsøk
+(f.eks. hvis appen ble tvangsavsluttet eller erstattet i Applications mens
+den fortsatt kjørte, i stedet for avsluttet normalt via «Avslutt» i
+menylinjen) som fortsatt holder på port 55432 og/eller datamappens
+låsefil – en helt ny `postgres`-instans mot samme port/datamappe ville da
+naturlig nok nekte å starte. En omstart av Mac-en fjerner en slik
+gjenglemt prosess uten at eier trenger å gjøre noe teknisk, og er verdt å
+prøve FØR neste DMG-forsøk.
 
 ## Hva som er verifisert (fra denne Linux-økten)
 
