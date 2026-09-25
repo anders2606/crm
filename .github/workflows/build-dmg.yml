@@ -45,6 +45,15 @@ jobs:
       - name: Installer avhengigheter (rot)
         run: npm ci
 
+      # Må skje FØR typecheck: rotens tsconfig sin "**/*.ts" fanger opp
+      # electron/src også, og uten electron/node_modules (som inneholder
+      # "electron"-pakkens typedeklarasjoner) feiler tsc med "Cannot find
+      # module 'electron'" på alt som importerer den - ikke en reell feil i
+      # koden selv, kun rekkefølgen her.
+      - name: Installer avhengigheter (electron)
+        working-directory: electron
+        run: npm ci
+
       - name: Typecheck og lint
         run: |
           npm run typecheck
@@ -97,10 +106,6 @@ jobs:
           cp /tmp/postgres-extract/pgsql/bin/pg_restore electron/resources/postgres/bin/
           chmod +x electron/resources/postgres/bin/*
           ls -la electron/resources/postgres/bin/
-
-      - name: Installer avhengigheter (electron)
-        working-directory: electron
-        run: npm ci
 
       - name: Bygg DMG
         working-directory: electron
