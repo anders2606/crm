@@ -52,6 +52,7 @@ export PIETRA_UNICA_RESOURCES_DIR=/tmp/pu-dev-resources
 ```
 <resources>/
   postgres/bin/{postgres,initdb,createdb,pg_dump,pg_restore}
+  postgres/lib/                  (delte biblioteker binærene over er lenket mot – IKKE valgfri, se resources/postgres/README.md)
   app/                     (kopi av ../.next/standalone)
   app/.next/static/        (kopi av ../.next/static)
   app/prisma/              (kopi av ../prisma, for migreringer)
@@ -209,11 +210,36 @@ senere kjører internt.
    Verifisert direkte (ikke bare lest): alle tre feilveiene og den normale
    suksessveien gir riktig resultat.
 
-**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at ad-hoc-signering
-faktisk løser problemet i praksis – det kan kun bekreftes ved at eier
-prøver en ny DMG bygget med denne fiksen. Hvis `initdb` fortsatt feiler
-etter dette, vil den nye feilmeldingen (signal eller faktisk feiltekst fra
-initdb selv) fortelle langt mer enn «avslutningskode null» gjorde.
+**Runde 2:** eier prøvde en ny DMG bygget med fiksen over, og fikk – nettopp
+takket være den forbedrede feilmeldingen – et langt mer presist resultat:
+`initdb ble stanset av systemet (signal SIGABRT)`, ikke lenger et bart
+`null`. Dette bekrefter at ad-hoc-signeringen av selve binærene FUNGERTE
+(prosessen startet nå faktisk), men avdekket det NESTE reelle problemet:
+et `SIGABRT` her er typisk dyld sin egen reaksjon på en manglende eller
+usignert AVHENGIGHET – ikke selve hovedbinæren.
+
+**Rotårsak (runde 2):** `initdb`/`postgres`/øvrige binærer er dynamisk
+lenket mot delte biblioteker (libpq/libssl/libicu osv.) som EDB sin
+nedlasting legger i en sidestilt `pgsql/lib/` – en mappe som ALDRI ble
+kopiert inn i appen, kun de fem binærene i `bin/`. Uten disse bibliotekene
+tilgjengelig på den relative stien binærene forventer (`lib/` ved siden av
+`bin/`), klarer ikke dyld å laste dem i det hele tatt.
+
+**Rettet:** `.github/workflows/build-dmg.yml` kopierer nå HELE
+`pgsql/lib/` inn i `resources/postgres/lib/` i tillegg til `bin/`, med et
+`otool -L`-diagnostikksteg logget uansett utfall (for å bekrefte den
+faktiske avhengighetslisten neste kjøring, fremfor å gjette blindt).
+`scripts/afterPack.js` ad-hoc-signerer nå BEGGE mappene (rekursivt), ikke
+bare `bin/`. `electron/resources/postgres/README.md` oppdatert til å kreve
+`lib/`-mappen eksplisitt for et manuelt Mac-bygg også.
+
+**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at dette faktisk
+løser problemet – kan igjen kun bekreftes ved at eier prøver en ny DMG.
+Hvis det fortsatt feiler, vil `otool -L`-loggen i GitHub Actions-kjøringen
+og en eventuell fanget stderr-tekst i den nye feilmeldingen (se
+`processUtils.ts`, som nå inkluderer fanget utdata selv når prosessen ble
+drept av et signal) vise nøyaktig hvilket bibliotek som fortsatt mangler
+eller feiler, i stedet for å måtte gjette på nytt.
 
 ## Hva som er verifisert (fra denne Linux-økten)
 

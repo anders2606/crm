@@ -116,7 +116,7 @@ jobs:
             fi
             echo "Brukte versjon $FOUND"
             unzip -q /tmp/postgres-binaries.zip -d /tmp/postgres-extract
-            rm -rf resources/postgres/bin
+            rm -rf resources/postgres/bin resources/postgres/lib
             mkdir -p resources/postgres/bin
             cp /tmp/postgres-extract/pgsql/bin/postgres resources/postgres/bin/
             cp /tmp/postgres-extract/pgsql/bin/initdb resources/postgres/bin/
@@ -124,6 +124,23 @@ jobs:
             cp /tmp/postgres-extract/pgsql/bin/pg_dump resources/postgres/bin/
             cp /tmp/postgres-extract/pgsql/bin/pg_restore resources/postgres/bin/
             chmod +x resources/postgres/bin/*
+
+            # De fem binærene over er DYNAMISK lenket mot delte biblioteker
+            # (libpq/libssl/libicu osv., se `otool -L` under) som EDB sin
+            # pakke legger i en sidestilt pgsql/lib/ - uten denne mappen med
+            # på samme relative plassering (postgres/lib ved siden av
+            # postgres/bin) klarer ikke dyld å laste dem i det hele tatt.
+            # Ekte feil oppdaget av eier: "initdb ble stanset av signal
+            # SIGABRT" - dyld sin egen reaksjon på nettopp dette.
+            if [ -d /tmp/postgres-extract/pgsql/lib ]; then
+              mkdir -p resources/postgres/lib
+              cp -R /tmp/postgres-extract/pgsql/lib/. resources/postgres/lib/
+            else
+              echo "::warning::Fant ingen pgsql/lib/-mappe i EDB sin nedlasting - hvis binærene er dynamisk lenket, vil de mangle sine avhengigheter."
+            fi
+
+            echo "--- otool -L resources/postgres/bin/initdb (avhengigheter og hvordan de er lenket) ---"
+            otool -L resources/postgres/bin/initdb || true
 
             # Selvverifiserende: EDB sin nedlasting har ingen arkitektur i
             # filnavnet, så vi kan ikke stole blindt på at den faktisk
