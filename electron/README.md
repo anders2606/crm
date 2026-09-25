@@ -62,14 +62,23 @@ export PIETRA_UNICA_RESOURCES_DIR=/tmp/pu-dev-resources
 
 ## Bygge DMG-en
 
+Appen leveres som to SEPARATE DMG-er (DR-10) – én for Apple Silicon og én
+for Intel, siden de medfølgende PostgreSQL-binærene er
+arkitekturspesifikke (se `resources/postgres/README.md` for hvordan du
+bytter dem mellom de to byggene):
+
 ```bash
-npm run dist:mac
+npm run dist:mac:arm64   # Apple Silicon
+npm run dist:mac:x64     # Intel
 ```
 
 **Dette må kjøres PÅ en Mac** – electron-builder kan ikke lage en macOS
 DMG fra Linux (`hdiutil` finnes bare på macOS). Kjør stegene i «Bygge og
 kjøre i utvikling» over først (`next build`, `build-worker.mjs`), siden
-`dist:mac` sin `extraResources` henter fra `../.next/standalone` osv.
+`dist:mac:*` sin `extraResources` henter fra `../.next/standalone` osv.
+`.github/workflows/build-dmg.yml` bygger begge automatisk via GitHub
+Actions – se «DMG-bygging i GitHub Actions» lenger ned for hva som
+faktisk er verifisert der.
 
 DMG-en signeres bevisst ikke (`"identity": null` i `package.json`, jf.
 DR-16 – «DMG-en leveres usignert»). Se `docs/mac-mini-oppsett.md` for
@@ -105,6 +114,55 @@ problemet) og, som ekstra sikkerhetsnett, samme `filter`-mønster som
 `.env*` allerede brukte i `extraResources` her i `package.json`. Bekreftet
 rettet: et nytt `--mac dir --arm64`-bygg inneholder verken `data/` eller
 `.env*` i `Contents/Resources/`.
+
+## DMG-bygging i GitHub Actions – hva som er verifisert
+
+`.github/workflows/build-dmg.yml` (manuell, `workflow_dispatch`) bygger
+begge DMG-ene på en ekte macOS-runner, siden det er det eneste stedet i
+denne utviklingsøkten en ekte DMG faktisk kan lages. Kjørt for reelt flere
+ganger, og fant tre reelle feil utover de over – alle rettet og bekreftet
+med en påfølgende grønn kjøring:
+
+1. **Rekkefølgefeil, ikke en kodefeil:** første kjøring feilet i
+   typecheck-steget fordi rotens tsconfig sin `**/*.ts` fanger opp
+   `electron/src` også, og `electron/node_modules` (som har `electron`
+   sine egne typedeklarasjoner) ikke var installert ennå på det
+   tidspunktet i workflowen. Rettet ved å installere `electron/` sine
+   avhengigheter FØR typecheck-steget.
+2. **`@prisma/client`-kollisjon i selve pakkingen:** `EEXIST: file already
+   exists, link .../node_modules/@prisma/client/default.js`. To
+   `extraResources`-oppføringer kopierte begge inn `@prisma/client` til
+   samme sted – den sporede `.next/standalone` (som Next.js allerede tar
+   med) OG en eksplisitt `../node_modules/@prisma`-oppføring (der for at
+   den bundlede Prisma CLI-en skal ha sine egne `@prisma/engines` osv.).
+   Kolliderte kun på macOS sin hardlink-baserte filkopiering (`builder-
+   util`), IKKE på Linux sin vanlige kopiering – derfor ikke fanget opp av
+   det tidligere `--mac dir`-testbygget. Rettet ved å ekskludere `client`
+   fra den eksplisitte `@prisma`-kopien, siden `.next/standalone` sin
+   sporede kopi allerede er den appen faktisk bruker.
+3. **arm64-DMG-en kjørte ikke på en Intel-Mac** (oppdaget av eier selv, på
+   en ekte mid-2020 MacBook Air – IKKE noe headless testing i denne økten
+   kunne ha fanget opp, siden det krever ekte Intel-maskinvare). To
+   separate ting måtte rettes:
+   - `prisma/schema.prisma` sin `binaryTargets` inneholdt kun `native` og
+     `darwin-arm64` – ALDRI `darwin` (Intel). `@prisma/client` sin
+     spørremotor mangler dermed helt på en Intel-Mac, uavhengig av om
+     PostgreSQL-binærene i seg selv var riktige. Rettet ved å legge til
+     `darwin` i `binaryTargets`.
+   - Selve DR-10-kravet ble endret (etter eiers eksplisitte beslutning,
+     se `docs/kravspesifikasjon.md`) fra kun arm64 til å dekke BEGGE
+     arkitekturene permanent. `dist:mac` delt i `dist:mac:arm64`/
+     `dist:mac:x64`, og workflowen bygger nå begge i to omganger (samme
+     `.next/standalone`, som inneholder alle tre Prisma-motorene uansett,
+     men arkitekturspesifikke PostgreSQL-binærer hentet og
+     `lipo`-verifisert rett før hver av dem).
+
+**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at EDB sin
+nedlasting faktisk inneholder ekte x64-binærer under samme filnavn som
+arm64-varianten (ingen arkitektur i selve URL-en) – `lipo -archs`-sjekken
+i workflowen er nettopp lagt til for å oppdage dette tydelig hvis
+antakelsen skulle vise seg feil, i stedet for å stille pakke feil
+arkitektur inn igjen.
 
 ## Hva som er verifisert (fra denne Linux-økten)
 
@@ -405,9 +463,17 @@ strømbrudd. Det som ER verifisert direkte:
 
 ## Hva som gjenstår på en ekte Mac
 
-- At de faktiske arm64-PostgreSQL-binærene (ikke Linux sine, som ble brukt
-  i verifiseringen over) fungerer likt.
-- At `npm run dist:mac` faktisk produserer en installerbar DMG.
+- **Bekreftet av GitHub Actions (se «DMG-bygging i GitHub Actions» over),
+  IKKE av Claude direkte:** at `npm run dist:mac:arm64`/`dist:mac:x64`
+  faktisk produserer en DMG-fil. Det som gjenstår er selve
+  INSTALLASJONEN og KJØRINGEN av disse DMG-ene på ekte maskinvare – ingen
+  av dem er bekreftet å faktisk fungere etter installasjon ennå (arm64:
+  ingen har testet på ekte Apple Silicon; x64: bygget for første gang som
+  følge av at eier testet arm64-DMG-en på en Intel-Mac og den naturlig nok
+  ikke fungerte der).
+- At de faktiske PostgreSQL-binærene (både arm64 og x64 – ikke Linux sine,
+  som ble brukt i verifiseringen under) fungerer likt i praksis, ikke bare
+  at de kopieres riktig inn i DMG-en.
 - At launchd-registreringen faktisk starter appen ved (automatisk)
   innlogging og restarter den ved krasj (DR-12) – bygget og
   orkestreringstestet med en falsk `launchctl`, se eget avsnitt over, men

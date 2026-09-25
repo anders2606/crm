@@ -2,12 +2,13 @@
   "name": "pietra-unica-crm-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "M9 (DR-10/DR-11): kontrollpanel i menylinjen som pakker og driver Pietra Unica CRM som en macOS-app (DMG, arm64). Se README.md i denne mappen for hvilke binærfiler som må legges til før DMG-en kan bygges på en Mac.",
+  "description": "M9 (DR-10/DR-11): kontrollpanel i menylinjen som pakker og driver Pietra Unica CRM som en macOS-app (DMG, arm64 og x64). Se README.md i denne mappen for hvilke binærfiler som må legges til før DMG-en kan bygges på en Mac.",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && cp src/wizard/wizard.html dist/wizard/wizard.html",
     "dev": "npm run build && electron .",
-    "dist:mac": "npm run build && electron-builder --mac --arm64"
+    "dist:mac:arm64": "npm run build && electron-builder --mac --arm64",
+    "dist:mac:x64": "npm run build && electron-builder --mac --x64"
   },
   "devDependencies": {
     "@types/node": "^20.16.10",
@@ -60,8 +61,7 @@
       "category": "public.app-category.business",
       "target": [
         {
-          "target": "dmg",
-          "arch": ["arm64"]
+          "target": "dmg"
         }
       ],
       "identity": null

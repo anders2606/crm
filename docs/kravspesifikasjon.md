@@ -342,7 +342,7 @@ Systemet skal kunne kjøres på to måter fra samme kodebase: i **lokal modus** 
 
 | ID | Krav | Prioritet |
 | --- | --- | --- |
-| DR-10 | Leveres som DMG for macOS på Apple Silicon (arm64). Inneholder appen «Pietra Unica CRM» med innebygd Node, PostgreSQL og worker. | MÅ |
+| DR-10 | Leveres som DMG for macOS, med separate bygg for Apple Silicon (arm64) og Intel (x64) – begge er en varig, likestilt del av produktet (endret fra kun arm64 etter at eier testet på en Intel-Mac). Inneholder appen «Pietra Unica CRM» med innebygd Node, PostgreSQL og worker. | MÅ |
 | DR-11 | Appen har et kontrollpanel i menylinjen: status for web, database, worker og integrasjoner, start/stopp, åpne i nettleser, ta backup og vis logger. | MÅ |
 | DR-12 | Ved første oppstart velges modus (lokal eller server). I servermodus registreres tjenestene i macOS launchd, slik at de starter ved oppstart og restartes automatisk ved krasj. | MÅ |
 | DR-13 | Installasjonsveiviser: velg datamappe, opprett administrator og legg inn nøkler. | MÅ |
@@ -351,7 +351,7 @@ Systemet skal kunne kjøres på to måter fra samme kodebase: i **lokal modus** 
 | DR-16 | DMG-en leveres usignert. Installasjonsveiledningen forklarer hvordan advarselen fra macOS godkjennes (Systeminnstillinger → Personvern og sikkerhet → Åpne likevel). | MÅ |
 | DR-17 | Veiledning for å sette opp Mac mini som server: ikke gå i dvale, starte automatisk etter strømbrudd, FileVault-kryptering, UPS og backup. | MÅ |
 
-**Teknisk løsning:** Appen pakkes med Electron og electron-builder til DMG. Electron brukes bare som kontrollpanel. Selve CRM-et åpnes i nettleseren. Next.js bygges i standalone-modus, og PostgreSQL kjøres fra medfølgende binærer for darwin-arm64 (f.eks. npm-pakken embedded-postgres). Filer lagres på lokal disk bak et lagringsgrensesnitt, slik at S3 kan kobles på senere. Docker Compose brukes bare i utvikling.
+**Teknisk løsning:** Appen pakkes med Electron og electron-builder til DMG, i to separate bygg (arm64 og x64) siden PostgreSQL-binærene som følger med er arkitekturspesifikke. Electron brukes bare som kontrollpanel. Selve CRM-et åpnes i nettleseren. Next.js bygges i standalone-modus, og PostgreSQL kjøres fra medfølgende binærer for riktig arkitektur (darwin-arm64/darwin-x64). Filer lagres på lokal disk bak et lagringsgrensesnitt, slik at S3 kan kobles på senere. Docker Compose brukes bare i utvikling.
 
 ## 17. Datamodell
 

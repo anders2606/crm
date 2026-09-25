@@ -3,11 +3,15 @@
 
 generator client {
   provider      = "prisma-client-js"
-  // DR-10: appen pakkes for macOS Apple Silicon (M9) – "native" dekker
-  // vanlig utvikling (Linux/Intel/Apple Silicon, alt etter hvor det bygges),
-  // og darwin-arm64 sikrer at riktig motor følger med uansett hvilken
-  // maskin `prisma generate`/`next build` kjøres på før DMG-en pakkes.
-  binaryTargets = ["native", "darwin-arm64"]
+  // DR-10: appen pakkes for macOS på BÅDE Apple Silicon og Intel (M9) –
+  // "native" dekker vanlig utvikling (Linux/Intel/Apple Silicon, alt etter
+  // hvor det bygges), og darwin-arm64/darwin sikrer at riktig Prisma-motor
+  // følger med i @prisma/client uansett hvilken maskin `prisma generate`/
+  // `next build` kjøres på FØR DMG-en pakkes, og uansett hvilken av de to
+  // DMG-ene som pakkes etterpå. Uten "darwin" her ville x64-DMG-en pakket en
+  // web-server som mangler en kjørbar spørringsmotor på Intel-Mac-er – en
+  // reell feil oppdaget først når eier faktisk testet på en Intel-Mac.
+  binaryTargets = ["native", "darwin-arm64", "darwin"]
 }
 
 datasource db {

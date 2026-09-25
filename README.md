@@ -398,16 +398,20 @@ Verifisert i emulert mobilvisning, ikke på fysisk enhet.
 
 Dekker MÅ-kravene DR-05–08, DR-10–14, DR-16, DR-17 (kap. 19). Se `electron/`-mappen for koden og
 `electron/README.md` for en detaljert gjennomgang av hva som er verifisert og hvordan, task for
-task. Denne milepælen ble skrevet og testet fra en Linux-utviklingsøkt uten tilgang til macOS – all
-funksjonalitet er verifisert på Linux (headless Electron via Playwright/Xvfb, ekte PostgreSQL,
-en falsk `launchctl` der ekte launchd ikke finnes), men **ingenting av M9 er kjørt på en ekte Mac
-ennå**. Dette er det eneste gjenstående før milepælen kan regnes som fullført i praksis.
+task. Denne milepælen ble i all hovedsak skrevet og testet fra en Linux-utviklingsøkt uten
+tilgang til macOS (headless Electron via Playwright/Xvfb, ekte PostgreSQL, en falsk `launchctl`
+der ekte launchd ikke finnes) – selve DMG-byggingen er i ettertid også kjørt på ekte macOS-runnere
+i GitHub Actions (`.github/workflows/build-dmg.yml`), som fant og rettet flere reelle
+pakkefeil (se `electron/README.md`), men **selve installasjonen og kjøringen på fysisk
+Mac-maskinvare er fortsatt ikke bekreftet**. Dette er det eneste gjenstående før milepælen kan
+regnes som fullført i praksis.
 
-**Kontrollpanel og prosessadministrasjon** (DR-10/11): appen pakkes med Electron til en DMG for
-Apple Silicon, med Node (Electrons egen kjøretid), PostgreSQL (medfølgende binærer) og
-worker-prosessen bunet inn – ingen separate installasjoner trengs. Et menylinje-ikon viser status
-for web/database/worker, med start/stopp, «Åpne i nettleser», «Ta backup nå», «Vis logger» og
-«Eksporter for flytting …» (DR-05).
+**Kontrollpanel og prosessadministrasjon** (DR-10/11): appen pakkes med Electron til to separate
+DMG-er – én for Apple Silicon (arm64) og én for Intel (x64), siden PostgreSQL-binærene som følger
+med er arkitekturspesifikke – med Node (Electrons egen kjøretid), PostgreSQL (medfølgende
+binærer) og worker-prosessen bunet inn – ingen separate installasjoner trengs. Et menylinje-ikon
+viser status for web/database/worker, med start/stopp, «Åpne i nettleser», «Ta backup nå», «Vis
+logger» og «Eksporter for flytting …» (DR-05).
 
 **Installasjonsveiviser og modusvalg** (DR-12/13): ved første oppstart velges lokal modus (én Mac)
 eller servermodus (Mac mini, hele kontoret), en datamappe (database, dokumenter, backup, adskilt

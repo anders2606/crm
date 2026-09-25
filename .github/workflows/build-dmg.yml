@@ -1,20 +1,28 @@
 name: Bygg DMG (M9)
 
 # Kjøres manuelt (workflow_dispatch), ikke på hver push - dette er et tungt
-# bygg (~20-30 min på en macOS-runner) ment for å produsere en usignert DMG
+# bygg (~20-30 min på en macOS-runner) ment for å produsere usignerte DMG-er
 # (DR-16) å teste, ikke en del av den vanlige CI-sjekken (se ci.yml).
 #
 # electron-builder kan IKKE lage en macOS-DMG fra Linux (dmg-builder sin
 # dmg-license-avhengighet er markert "os": ["darwin"], se electron/README.md)
-# - denne workflowen kjører derfor på en ekte macOS-runner (macos-14, som er
-# Apple Silicon/arm64 - samme arkitektur appen leveres for, DR-10).
+# - denne workflowen kjører derfor på en ekte macOS-runner.
+#
+# DR-10 dekker BÅDE Apple Silicon (arm64) og Intel (x64) - endret fra kun
+# arm64 etter at eier testet på en Intel-Mac (mid-2020 MacBook Air) og
+# arm64-DMG-en naturlig nok ikke kjørte der. Next.js sitt standalone-bygg
+# (JS + ALLE Prisma-motorer, se prisma/schema.prisma sin binaryTargets) er
+# identisk uansett hvilken av de to DMG-ene som pakkes etterpå, så det bygges
+# kun ÉN gang her - selve electron-builder-pakkingen (som trenger
+# arkitekturspesifikke PostgreSQL-binærer) kjøres deretter to ganger, én per
+# arkitektur, i stedet for å duplisere hele jobben i en matrise.
 on:
   workflow_dispatch:
 
 jobs:
   build-dmg:
     runs-on: macos-14
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -64,6 +72,11 @@ jobs:
         env:
           DATABASE_URL: postgresql://pietra:pietra@127.0.0.1:5432/pietra_unica_crm
 
+      # `prisma generate` (kjøres automatisk av @prisma/client sin egen
+      # postinstall i "npm ci" over) genererte alle tre spørremotorene satt i
+      # binaryTargets (native/darwin-arm64/darwin) allerede - dette bygget
+      # inneholder derfor motoren for BEGGE mac-arkitekturene uansett hvilken
+      # av de to DMG-ene som pakkes fra det etterpå.
       - name: Bygg Next.js standalone, worker og installer-tasks
         run: npm run build:desktop
         env:
@@ -71,50 +84,84 @@ jobs:
           SESSION_SECRET: ci-dmg-build-not-for-production
           SEED_ADMIN_PASSWORD: ci-dmg-build-not-for-production
 
-      # DR-10: relokerbare PostgreSQL-binærer (arm64) som skal FØLGE MED i
-      # selve appen - se electron/resources/postgres/README.md for hvorfor
-      # det må være EDB sin binærdistribusjon og ikke Homebrew (Homebrew sine
+      # DR-10: relokerbare PostgreSQL-binærer som skal FØLGE MED i selve
+      # appen - se electron/resources/postgres/README.md for hvorfor det må
+      # være EDB sin binærdistribusjon og ikke Homebrew (Homebrew sine
       # binærer er lenket mot en fast /opt/homebrew-sti og fungerer derfor
       # ikke flyttet inn i en annen brukers datamappe på en Mac uten
-      # Homebrew). Nøyaktig filnavn/versjon hos EDB kan endre seg over tid -
-      # prøver derfor en liste med kandidater.
-      - name: Hent PostgreSQL 16 arm64-binærer til selve appen (EDB)
+      # Homebrew). Henter og verifiserer én arkitektur om gangen ($1) rett
+      # før den brukes, se løkken lenger ned.
+      - name: Hent PostgreSQL 16-binærer og bygg DMG (arm64 og x64)
+        working-directory: electron
         run: |
           set -euo pipefail
-          CANDIDATES=(16.10-1 16.9-1 16.9-2 16.8-1 16.8-2 16.7-1 16.6-1 16.6-2 16.5-1 16.5-2 16.4-1 16.4-2 16.3-1)
-          mkdir -p /tmp/postgres-extract
-          FOUND=""
-          for v in "${CANDIDATES[@]}"; do
-            url="https://get.enterprisedb.com/postgresql/postgresql-${v}-osx-binaries.zip"
-            echo "Prøver $url"
-            if curl -fSL --retry 2 --max-time 120 -o /tmp/postgres-binaries.zip "$url"; then
-              FOUND="$v"
-              break
+
+          fetch_postgres_binaries() {
+            local expected_lipo_arch="$1" # "arm64" eller "x86_64"
+            local CANDIDATES=(16.10-1 16.9-1 16.9-2 16.8-1 16.8-2 16.7-1 16.6-1 16.6-2 16.5-1 16.5-2 16.4-1 16.4-2 16.3-1)
+            rm -rf /tmp/postgres-extract
+            mkdir -p /tmp/postgres-extract
+            local FOUND=""
+            for v in "${CANDIDATES[@]}"; do
+              local url="https://get.enterprisedb.com/postgresql/postgresql-${v}-osx-binaries.zip"
+              echo "Prøver $url"
+              if curl -fSL --retry 2 --max-time 120 -o /tmp/postgres-binaries.zip "$url"; then
+                FOUND="$v"
+                break
+              fi
+            done
+            if [ -z "$FOUND" ]; then
+              echo "::error::Fant ingen EDB PostgreSQL 16-binærdistribusjon blant kandidatene. Se electron/resources/postgres/README.md for alternative kilder." >&2
+              exit 1
             fi
-          done
-          if [ -z "$FOUND" ]; then
-            echo "::error::Fant ingen EDB PostgreSQL 16 arm64-binærdistribusjon blant kandidatene. Se electron/resources/postgres/README.md for alternative kilder, og oppdater CANDIDATES-listen i denne workflowen." >&2
-            exit 1
-          fi
-          echo "Brukte versjon $FOUND"
-          unzip -q /tmp/postgres-binaries.zip -d /tmp/postgres-extract
-          mkdir -p electron/resources/postgres/bin
-          cp /tmp/postgres-extract/pgsql/bin/postgres electron/resources/postgres/bin/
-          cp /tmp/postgres-extract/pgsql/bin/initdb electron/resources/postgres/bin/
-          cp /tmp/postgres-extract/pgsql/bin/createdb electron/resources/postgres/bin/
-          cp /tmp/postgres-extract/pgsql/bin/pg_dump electron/resources/postgres/bin/
-          cp /tmp/postgres-extract/pgsql/bin/pg_restore electron/resources/postgres/bin/
-          chmod +x electron/resources/postgres/bin/*
-          ls -la electron/resources/postgres/bin/
+            echo "Brukte versjon $FOUND"
+            unzip -q /tmp/postgres-binaries.zip -d /tmp/postgres-extract
+            rm -rf resources/postgres/bin
+            mkdir -p resources/postgres/bin
+            cp /tmp/postgres-extract/pgsql/bin/postgres resources/postgres/bin/
+            cp /tmp/postgres-extract/pgsql/bin/initdb resources/postgres/bin/
+            cp /tmp/postgres-extract/pgsql/bin/createdb resources/postgres/bin/
+            cp /tmp/postgres-extract/pgsql/bin/pg_dump resources/postgres/bin/
+            cp /tmp/postgres-extract/pgsql/bin/pg_restore resources/postgres/bin/
+            chmod +x resources/postgres/bin/*
 
-      - name: Bygg DMG
-        working-directory: electron
-        run: npm run dist:mac
+            # Selvverifiserende: EDB sin nedlasting har ingen arkitektur i
+            # filnavnet, så vi kan ikke stole blindt på at den faktisk
+            # inneholder det vi tror. Godtar også en universal (fat) binær
+            # som dekker begge arkitekturene.
+            local actual_archs
+            actual_archs="$(lipo -archs resources/postgres/bin/postgres)"
+            echo "postgres-binæren inneholder: $actual_archs"
+            if [[ " $actual_archs " != *" $expected_lipo_arch "* ]]; then
+              echo "::error::Nedlastet PostgreSQL-binær mangler forventet arkitektur '$expected_lipo_arch' (inneholder: $actual_archs). EDB sin nedlasting dekker trolig ikke denne arkitekturen under denne filnavn-konvensjonen - se electron/resources/postgres/README.md for alternative kilder (f.eks. Postgres.app) for denne arkitekturen." >&2
+              exit 1
+            fi
+          }
 
-      - name: Last opp DMG som artefakt
+          fetch_postgres_binaries "arm64"
+          npm run dist:mac:arm64
+          mkdir -p release-out
+          mv release/*.dmg release-out/pietra-unica-crm-arm64.dmg
+
+          fetch_postgres_binaries "x86_64"
+          rm -rf release
+          npm run dist:mac:x64
+          mv release/*.dmg release-out/pietra-unica-crm-x64.dmg
+
+          ls -la release-out/
+
+      - name: Last opp arm64-DMG som artefakt
         uses: actions/upload-artifact@v4
         with:
-          name: pietra-unica-crm-dmg
-          path: electron/release/*.dmg
+          name: pietra-unica-crm-dmg-arm64
+          path: electron/release-out/pietra-unica-crm-arm64.dmg
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Last opp x64-DMG som artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: pietra-unica-crm-dmg-x64
+          path: electron/release-out/pietra-unica-crm-x64.dmg
           retention-days: 14
           if-no-files-found: error
