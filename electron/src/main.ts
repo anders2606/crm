@@ -16,6 +16,7 @@ import { adoptMasterKey, getOrCreateMasterKey } from './services/masterKey';
 import { runPendingMigrations } from './services/migrate';
 import { exportInstallation, importInstallation } from './services/migration';
 import { buildDatabaseUrl, ensureDatabaseExists, isPostgresBundled, startPostgres, stopPostgres } from './services/postgres';
+import { notifyIfUpgraded } from './services/updateNotice';
 import { startWebServer, stopWebServer, waitForWebServerReady } from './services/webServer';
 import { startWorker, stopWorker } from './services/worker';
 import { createTray, updateTrayStatus, type TrayCallbacks } from './tray';
@@ -197,6 +198,9 @@ async function startServices(): Promise<void> {
     return;
   }
 
+  // DR-14: oppdaget FØR writeConfig overskriver lastKnownVersion under, slik
+  // at den fortsatt holder FORRIGE versjon her.
+  notifyIfUpgraded(config.lastKnownVersion, app.getVersion());
   await writeConfig({ ...config, lastKnownVersion: app.getVersion() });
 }
 

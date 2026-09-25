@@ -286,6 +286,47 @@ sine funksjoner kalt direkte) og den planlagte daglige jobben i sanntid
 (verifisert ved kodelesning + at selve `runBackupNow()`-kallet den bruker
 fungerer, ikke ved å faktisk vente 24 timer).
 
+## Oppdateringsflyt (DR-14) – hva som er verifisert
+
+Appen har ingen auto-oppdatering – brukeren laster ned og installerer en ny
+DMG manuelt over den gamle (DR-16). Selve «uten tap av data»-garantien var
+allerede strukturelt på plass FØR denne oppgaven: datamappen (database,
+dokumenter) ligger alltid utenfor `.app`-bunten (DR-02/DR-13), og en
+automatisk backup tas alltid FØR migreringer kjører, på ENHVER oppstart
+(DR-03) – inkludert den aller første oppstarten etter en oppdatering, uansett
+om den bringer med seg nye migreringer. Det som manglet var å faktisk
+OPPDAGE at dette skjedde, og gi brukeren en synlig bekreftelse på at
+oppdateringen gikk bra og at en backup ble tatt automatisk før den – uten
+dette skjer alt riktig, men usynlig.
+
+- Ny `services/updateNotice.ts`: `notifyIfUpgraded(previousVersion,
+  currentVersion)` sammenligner `lastKnownVersion` fra forrige lagrede
+  `config.json` mot `app.getVersion()` og logger + viser et
+  systemvarsel (`Notification`) når de er ulike. `previousVersion === null`
+  (aller første oppstart) og lik versjon gir bevisst ingen varsling.
+- `main.ts` kaller denne rett før `writeConfig` skriver den NYE versjonen
+  til `config.json`, slik at sammenligningen skjer mot verdien fra FØR
+  oppstarten – bruker forrige-versjonen som allerede lå i `AppConfig` (feltet
+  fantes fra før, satt til `null` ved førstegangsoppsett).
+
+Verifisert med en full simulert oppdateringssyklus (Playwright sin
+`_electron`-driver mot en ekte PostgreSQL-database, forhåndsseedet
+`config.json` med en gammel `lastKnownVersion`):
+
+- Forventet loggmelding skrives ut, og `config.json` sin `lastKnownVersion`
+  oppdateres korrekt fra den gamle testversjonen til appens ekte versjon.
+- En seedet kundepost overlever hele den simulerte oppstartssyklusen
+  uendret (bekreftet ved å restarte PostgreSQL og spørre direkte etter at
+  Electron-testappen var lukket) – altså at DR-03 sin
+  backup-før-migrering-rekkefølge faktisk ikke rører eksisterende data.
+- Ingen varsling og ingen loggmelding ved aller første oppstart
+  (`lastKnownVersion === null`) eller ved uendret versjon.
+
+**IKKE testet:** at `Notification` faktisk vises som et ekte macOS-varsel –
+`Notification.isSupported()` returnerer `false` i denne Linux-sandkassen
+(forventet, ingen native varslingstjeneste her), så selve visningen er kun
+verifisert ved kodelesning, ikke i praksis.
+
 ## Hva som gjenstår på en ekte Mac
 
 - At de faktiske arm64-PostgreSQL-binærene (ikke Linux sine, som ble brukt
