@@ -5,8 +5,10 @@ Eget CRM-system for Pietra Unica (marmor.no). Se `docs/kravspesifikasjon.md` for
 ## Status
 
 **M0 Fundament, M1 Kunder og leverandører, M2 Dokumenter, M3 E-post, M4 Materialbibliotek,
-M5 Tilbud og ordre, M6 PowerOffice, M7 Bilag og betalinger og M8 Utsendelser og rapporter er
-bygget.** Se statustabellen i `CLAUDE.md` for øvrige milepæler.
+M5 Tilbud og ordre, M6 PowerOffice, M7 Bilag og betalinger, M8 Utsendelser og rapporter og
+M9 Serverpakke (DMG) er bygget.** M9 er IKKE verifisert på en ekte Mac (bygget og testet fra en
+Linux-økt uten macOS-tilgang) – se `electron/README.md`. Se statustabellen i `CLAUDE.md` for
+M10 (ikke startet).
 
 - M0: innlogging med 2FA, roller/rettigheter, revisjonslogg, helsesjekk, backup-skript.
 - M1: kunder og leverandører med kontaktpersoner, adresser, kundegrupper, samtykke, tidslinje og oppgaver; duplikatkontroll ved registrering; enkelt fellessøk (GE-05) på tvers av kunder/leverandører.
@@ -62,8 +64,8 @@ Forutsetter Node.js 20+ og en lokal PostgreSQL 16.
 - `npm run db:backup` tar en `pg_dump` av databasen OG et `tar.gz`-arkiv av dokumentmappen (`STORAGE_DIR`) til `BACKUP_DIR` (standard `./data/backups`), og fjerner begge deler når de er eldre enn `BACKUP_RETENTION_DAYS` (standard 30 dager). Kjøres automatisk før `npm run dev`/`npm run start` (DR-03), forutsatt at `pg_dump`/`tar` finnes i PATH.
 - Dokumenter lagres på lokal disk under `STORAGE_DIR` (standard `./data/documents`), bak et lagringsgrensesnitt (`src/lib/storage.ts`) slik at DO-08 kan utvides til S3 senere uten kodeendring.
 - Helsesjekk: `GET /api/health` (IF-06) svarer 200 når databasen er tilgjengelig, ellers 503.
-- **Gjenstår til M9 (serverpakke):** DMG-pakking, kontrollpanel, launchd-oppstart i servermodus, full 30-dagers rotasjon til ekstern/kryptert disk (database OG dokumenter), og migrering mellom lokal modus og Mac mini (DR-05, DR-10–17).
-- **Gjenstår ellers:** nøkler i macOS-nøkkelring i stedet for `.env` er planlagt for lokal modus/servermodus (DR-08) – i utvikling brukes kun `.env` per arbeidsregel 6.
+- I lokal modus/servermodus (M9, `electron/`) tas denne samme backupen automatisk ved hver oppstart og minst én gang i døgnet mens appen kjører (DR-06), og kan gjenopprettes fra `/admin/backup` i tillegg til fra kontrollpanelet. Se `electron/README.md`.
+- Ovenstående er kun for utvikling (`.env`, `npm run dev`/`npm run start`). I lokal modus/servermodus ligger hemmeligheter i macOS-nøkkelringen (DR-08) i stedet for `.env` – se `electron/README.md`.
 
 ## Arkitektur
 
@@ -391,3 +393,56 @@ skjermer, og dokumentopplasting (M2) tilbyr kameraopptak på mobil via nettleser
 Verifisert i emulert mobilvisning, ikke på fysisk enhet.
 
 **Bevisst utsatt:** GE-12 (kalenderintegrasjon/CalDAV – KAN).
+
+## M9: hva som er bygget og hva som gjenstår
+
+Dekker MÅ-kravene DR-05–08, DR-10–14, DR-16, DR-17 (kap. 19). Se `electron/`-mappen for koden og
+`electron/README.md` for en detaljert gjennomgang av hva som er verifisert og hvordan, task for
+task. Denne milepælen ble skrevet og testet fra en Linux-utviklingsøkt uten tilgang til macOS – all
+funksjonalitet er verifisert på Linux (headless Electron via Playwright/Xvfb, ekte PostgreSQL,
+en falsk `launchctl` der ekte launchd ikke finnes), men **ingenting av M9 er kjørt på en ekte Mac
+ennå**. Dette er det eneste gjenstående før milepælen kan regnes som fullført i praksis.
+
+**Kontrollpanel og prosessadministrasjon** (DR-10/11): appen pakkes med Electron til en DMG for
+Apple Silicon, med Node (Electrons egen kjøretid), PostgreSQL (medfølgende binærer) og
+worker-prosessen bunet inn – ingen separate installasjoner trengs. Et menylinje-ikon viser status
+for web/database/worker, med start/stopp, «Åpne i nettleser», «Ta backup nå», «Vis logger» og
+«Eksporter for flytting …» (DR-05).
+
+**Installasjonsveiviser og modusvalg** (DR-12/13): ved første oppstart velges lokal modus (én Mac)
+eller servermodus (Mac mini, hele kontoret), en datamappe (database, dokumenter, backup, adskilt
+fra selve `.app`-bunten slik at en oppdatering aldri rører dataene), og en administratorbruker
+opprettes. I servermodus registreres appen i tillegg som et LaunchAgent i macOS launchd
+(`electron/src/services/launchd.ts`), slik at den starter automatisk og restartes ved krasj – se
+`docs/mac-mini-oppsett.md` for hvorfor dette krever automatisk innlogging, og manuelle
+launchctl-kommandoer i reserve.
+
+**Instanslås** (DR-07): en liten låsefil i datamappen hindrer at to samtidige PostgreSQL-instanser
+kan starte mot de samme datafilene (som kan korrumpere dem) – f.eks. hvis noen ved et uhell
+dobbeltklikker appen to ganger, eller lokal modus og servermodus peker mot samme delte mappe.
+
+**Nøkkelring for hemmeligheter** (DR-08): PowerOffice-nøkler og andre hemmeligheter krypteres med
+en masternøkkel hentet fra macOS-nøkkelringen (Keychain), ikke fra en `.env`-fil som i utvikling.
+
+**Eksport/import mellom lokal modus og Mac mini** (DR-05): «Eksporter for flytting …» i
+menylinjen pakker database, dokumenter og masternøkkel i én arkivfil; installasjonsveiviseren kan
+importere en slik fil i stedet for å sette opp fra nytt – den vanlige veien fra en selgers lokale
+modus over til en delt Mac mini i servermodus.
+
+**Utvidet backup-rotasjon og gjenoppretting** (DR-06): backup tas automatisk ved hver oppstart OG
+minst én gang i døgnet mens appen står på (viktig i servermodus, som kan kjøre i ukevis uten
+restart), med 30 dagers rotasjon. En administrator kan liste og gjenopprette fra en tidligere
+backup direkte fra `/admin/backup` i selve web-appen, ikke bare fra kontrollpanelet.
+
+**Oppdateringsflyt** (DR-14): appen har ingen auto-oppdatering – en ny DMG installeres manuelt over
+den gamle. En backup tas alltid automatisk før migreringer kjører, på enhver oppstart (DR-03),
+inkludert den første etter en oppdatering; appen oppdager selv en versjonsendring og bekrefter med
+et systemvarsel at oppdateringen gikk bra og at en backup ble tatt.
+
+**Driftsveiledning** (DR-16/17, `docs/mac-mini-oppsett.md`): hvordan godkjenne Gatekeeper-advarselen
+for den usignerte DMG-en, og hvordan sette opp en Mac mini som server (automatisk innlogging, ikke
+gå i dvale, start automatisk etter strømbrudd, FileVault, UPS, backup til et annet sted enn Mac
+mini-en selv, fast lokal IP).
+
+**Bevisst utsatt:** DR-15 (ekstern tilgang via WireGuard – KAN, «kan legges til uten omskriving»,
+ikke bygget ennå).
