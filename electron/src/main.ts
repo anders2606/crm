@@ -11,6 +11,7 @@ import { app, dialog } from 'electron';
 import { readConfig, writeConfig, type AppConfig } from './config';
 import { runBackupNow } from './services/backup';
 import { runInstallerTasks } from './services/installer';
+import { acquireInstanceLock, releaseInstanceLock } from './services/instanceLock';
 import { getOrCreateMasterKey } from './services/masterKey';
 import { runPendingMigrations } from './services/migrate';
 import { buildDatabaseUrl, ensureDatabaseExists, isPostgresBundled, startPostgres, stopPostgres } from './services/postgres';
@@ -36,6 +37,10 @@ let trayCallbacks: TrayCallbacks;
 
 /** DR-03: start database, ta backup, kjør migreringer. Felles for både veiviseren og vanlig oppstart. */
 async function prepareDatabase(config: AppConfig): Promise<{ databaseUrl: string; encryptionKey: string }> {
+  // DR-07: må skje FØR PostgreSQL startes – to samtidige PostgreSQL-
+  // instanser mot de samme datafilene kan korrumpere dem.
+  acquireInstanceLock();
+
   await startPostgres(config.postgresPort);
   ensureDatabaseExists(config.postgresPort);
   const databaseUrl = buildDatabaseUrl(config.postgresPort);
@@ -99,8 +104,13 @@ async function startServices(): Promise<void> {
     return;
   }
 
-  const { databaseUrl, encryptionKey } = await prepareDatabase(config);
-  await startAppServices(databaseUrl, encryptionKey, currentPort);
+  try {
+    const { databaseUrl, encryptionKey } = await prepareDatabase(config);
+    await startAppServices(databaseUrl, encryptionKey, currentPort);
+  } catch (error) {
+    dialog.showErrorBox('Kunne ikke starte', error instanceof Error ? error.message : String(error));
+    return;
+  }
 
   await writeConfig({ ...config, lastKnownVersion: app.getVersion() });
 }
@@ -109,6 +119,7 @@ async function stopServices(): Promise<void> {
   stopWorker();
   stopWebServer();
   await stopPostgres();
+  releaseInstanceLock();
 }
 
 app.whenReady().then(async () => {

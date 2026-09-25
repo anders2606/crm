@@ -40,5 +40,5 @@ Eier er ikke utvikler. Forklar valg og kommandoer kort og på norsk, og si tydel
 | M6 PowerOffice | Bygget – NB: PowerOffice sin produksjons-URL og ekte demo-tilkobling ikke verifisert av Claude (samme nettverksbegrensning som M3/M4), se README |
 | M7 Bilag og betalinger | Bygget (se README for detaljer og bevisst utsatte BØR/KAN-punkter) |
 | M8 Utsendelser og rapporter | Bygget (se README for detaljer og bevisst utsatt GE-12) |
-| M9 Serverpakke (DMG) | Pågår – prosessadministrasjon (DR-10/DR-11), nøkkelring (DR-08) og installasjonsveiviser (DR-12/DR-13) bygget og verifisert headless (Xvfb + Playwright), resten gjenstår. IKKE verifisert på ekte macOS (se electron/README.md) |
+| M9 Serverpakke (DMG) | Pågår – prosessadministrasjon (DR-10/DR-11), nøkkelring (DR-08), installasjonsveiviser (DR-12/DR-13) og instanslås (DR-07) bygget og verifisert headless (Xvfb + Playwright), resten gjenstår. IKKE verifisert på ekte macOS (se electron/README.md) |
 | M10 KI-modul (valgfri) | Ikke startet |

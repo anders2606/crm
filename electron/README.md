@@ -144,6 +144,36 @@ seg på en ekte Mac på samme måte, siden macOS sin Electron-standard for
 «alle vinduer lukket» uansett er å ikke avslutte appen – men den eksplisitte
 håndteringen er riktig og nødvendig uavhengig av plattform, så den beholdes.
 
+## Instanslås mot dobbel oppstart (DR-07) – hva som er verifisert
+
+`src/services/instanceLock.ts` skriver en liten `.lock`-fil (pid, maskinnavn,
+tidspunkt) i datamappen før PostgreSQL startes, og fjerner den ved normal
+avslutning. Dette er noe annet enn Electron sin egen
+`requestSingleInstanceLock()` i `main.ts` (som kun hindrer at NØYAKTIG samme
+app-binær startes to ganger på samme maskin) – denne låsen er knyttet til
+selve DATAMAPPEN, og skal fange opp f.eks. en bærbar Mac i lokal modus og
+Mac mini-en i servermodus som ved en feil peker mot samme datamappe.
+
+Verifisert direkte (kaller `acquireInstanceLock()`/`releaseInstanceLock()` i
+en ekte, kjørende Electron-prosess, med simulerte låsfil-tilstander):
+
+- Frisk oppstart tar låsen og skriver riktig pid/maskinnavn/tidspunkt.
+- En lås fra en LEVENDE prosess på samme maskin avvises med en klar
+  feilmelding (og bekreftet uten å ha overskrevet den andre prosessens lås).
+- En foreldet lås fra en KRASJET prosess på samme maskin (pid som ikke
+  lenger finnes) overtas automatisk.
+- En lås som peker til en ANNEN maskin avvises alltid (kan ikke verifiseres
+  eksternt, se kommentaren i `instanceLock.ts` for resonnementet) – brukeren
+  må bekrefte at den andre installasjonen er stoppet og fjerne låsfilen
+  manuelt om det stemmer.
+- Normal avslutning fjerner låsfilen igjen.
+
+Selve `acquireInstanceLock()`-kallet ble testet isolert (uten å starte
+PostgreSQL/web-server/worker for hvert scenario) – IKKE testet: den fulle
+oppstartskjeden med to samtidige, ekte konkurrerende Electron-instanser (to
+fulle GPU/Postgres/web-server-stabler samtidig i denne sandkassens Xvfb var
+upålitelig av rene ressursgrunner, ikke en svakhet i selve låsen).
+
 ## Hva som gjenstår på en ekte Mac
 
 - At de faktiske arm64-PostgreSQL-binærene (ikke Linux sine, som ble brukt
