@@ -33,6 +33,8 @@ export const PERMISSIONS = {
   CUSTOM_FIELDS_MANAGE: 'custom_fields.manage',
   // GE-11: opprette/tilbakekalle API-nøkler for det åpne REST-API-et.
   API_KEYS_MANAGE: 'api_keys.manage',
+  // DR-06: se liste over innebygde backuper og gjenopprette fra en av dem.
+  BACKUP_MANAGE: 'backup.manage',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS] | (string & {});

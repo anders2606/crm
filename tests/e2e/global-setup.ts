@@ -110,6 +110,7 @@ export default async function globalSetup(): Promise<void> {
       'reports.read',
       'custom_fields.manage',
       'api_keys.manage',
+      'backup.manage',
     ];
     const permissions = await Promise.all(
       permissionKeys.map((key) => prisma.permission.create({ data: { key } })),

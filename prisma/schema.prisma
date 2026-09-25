@@ -105,7 +105,7 @@ model Session {
 model AuditLog {
   id         String   @id @default(uuid())
   userId     String?
-  action     String // "create" | "update" | "delete" | "login" | "login_failed"
+  action     String // "create" | "update" | "delete" | "login" | "login_failed" | "logout" | "restore"
   entityType String
   entityId   String?
   before     Json?

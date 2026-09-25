@@ -41,9 +41,19 @@ async function main(): Promise<void> {
 
 function runPgDump(databaseUrl: string, filePath: string): Promise<void> {
   return new Promise((resolve) => {
-    const child = spawn('pg_dump', ['--format=plain', '--file', filePath, databaseUrl], {
-      stdio: 'inherit',
-    });
+    // DR-06: kun data (--data-only), som gjenopprettingssiden i admin (se
+    // src/lib/backup.ts) kjører mot et allerede migrert skjema – unngår
+    // versjonskrøll mellom skjemaet i en gammel dump og senere migreringer.
+    // --inserts gjør dumpen til ren, portabel SQL (INSERT-setninger) som kan
+    // kjøres direkte via Prisma sin rå SQL-spørring, uten pg_restore/psql
+    // sin COPY-strømming, som en generisk SQL-driver ikke støtter. Prisma
+    // sin egen migreringstabell ekskluderes – se kommentaren i
+    // electron/src/services/backup.ts for hvorfor.
+    const child = spawn(
+      'pg_dump',
+      ['--data-only', '--inserts', '--exclude-table=_prisma_migrations', '--format=plain', '--file', filePath, databaseUrl],
+      { stdio: 'inherit' },
+    );
     child.on('error', (error) => {
       console.warn(`[backup] Kunne ikke kjøre pg_dump (${error.message}). Hopper over backup.`);
       resolve();

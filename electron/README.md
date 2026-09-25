@@ -227,6 +227,65 @@ logikken bak (`exportInstallation`/`importInstallation`/`adoptMasterKey`)
 er verifisert direkte. Se `src/wizard/wizard.html` sitt import-avkrysningsfelt
 på steg 1.
 
+## Utvidet backup-rotasjon og gjenoppretting (DR-06) – hva som er verifisert
+
+30-dagers rotasjon fantes allerede (se `services/backup.ts`). Det som var
+igjen: en reell DAGLIG jobb (ikke bare ved oppstart, siden en Mac mini i
+servermodus kan stå på i ukevis) og gjenoppretting FRA ADMINISTRASJONSSIDEN
+(ikke bare fra menylinjen/kommandolinjen).
+
+- `main.ts` sjekker hver time om det er over 24 timer siden forrige backup
+  (satt både ved oppstart og etter en manuell «Ta backup nå»), og tar en ny
+  hvis så – uavhengig av om appen bare nettopp startet eller har stått på i
+  flere dager.
+- `pg_dump`-kallet i `services/backup.ts` (og det tilsvarende dev-skriptet
+  `scripts/backup.ts`) endret til `--data-only --inserts
+  --exclude-table=_prisma_migrations`: data-only (samme resonnement som
+  DR-05) og INSERT-setninger i stedet for COPY-blokker, slik at
+  gjenopprettingssiden i web-appen (`src/lib/backup.ts`) kan kjøre dumpen
+  direkte som SQL uten pg_restore/psql sin COPY-strømmingsprotokoll, som en
+  generisk SQL-driver ikke støtter. Prisma sin egen migreringstabell
+  ekskluderes – migreringene kjører uansett alltid før en gjenoppretting og
+  ville ellers kollidert med constraint-feil fra rader som finnes fra før.
+- Ny side `src/app/admin/backup` (bak en ny rettighet `backup.manage`)
+  lister tilgjengelige backuper og lar en administrator gjenopprette fra en
+  av dem, med en obligatorisk bekreftelsestekst («GJENOPPRETT») siden dette
+  er destruktivt (overskriver ALL nåværende data, logger ut alle brukere).
+  Selve gjenopprettingen (`src/lib/backup.ts`) kjører i én databasetransaksjon
+  (TRUNCATE av alle tabeller + gjeninnsetting fra dumpen), slik at en feil
+  underveis ruller tilbake til tilstanden før forsøket i stedet for å
+  etterlate databasen halvveis tømt. Dokumentmappen gjenopprettes separat
+  etterpå (kan ikke være del av samme SQL-transaksjon), med den forrige
+  mappen midlertidig flyttet til side (ikke slettet) til kopieringen er
+  bekreftet vellykket.
+
+Verifisert direkte mot en ekte PostgreSQL-database:
+
+- En reell oppdaget feilkilde underveis: Prisma sin `$executeRawUnsafe`
+  forbereder alltid spørringen (extended query protocol), som PostgreSQL
+  nekter for en streng med flere SQL-kommandoer («cannot insert multiple
+  commands into a prepared statement»). Løst ved å bruke `pg`
+  (node-postgres) direkte for selve gjenopprettingen, som bruker samme
+  «simple query»-protokoll som psql og dermed støtter dette.
+- En annen oppdaget feilkilde: nyere `pg_dump` legger automatisk inn en
+  `\restrict <nøkkel>`-psql-metakommando øverst i dumpen (gyldig for psql,
+  men ugyldig SQL for en generisk klient) – filtreres bort før kjøring.
+- Full runde (seed kunde + admin-bruker + en kryptert PowerOffice-nøkkel +
+  et testdokument → ekte `pg_dump`-backup via samme kode som Electron
+  bruker → simulert «katastrofe» (alt slettet) → `restoreBackup()`):
+  kunden, PowerOffice-nøkkelen (dekrypteres riktig) og dokumentet er alle
+  tilbake etter gjenoppretting.
+- En korrupt/ugyldig databasedump avvises av PostgreSQL selv, og
+  transaksjonen ruller riktig tilbake – bekreftet ved at en kontrollkunde
+  fortsatt fantes uendret etter det mislykkede forsøket.
+- Filnavnvalidering avviser path traversal-forsøk (`../../../etc/passwd`
+  o.l.) og ugyldige/ikke-eksisterende filnavn korrekt.
+
+**IKKE testet:** selve admin-siden i en nettleser (kun `src/lib/backup.ts`
+sine funksjoner kalt direkte) og den planlagte daglige jobben i sanntid
+(verifisert ved kodelesning + at selve `runBackupNow()`-kallet den bruker
+fungerer, ikke ved å faktisk vente 24 timer).
+
 ## Hva som gjenstår på en ekte Mac
 
 - At de faktiske arm64-PostgreSQL-binærene (ikke Linux sine, som ble brukt

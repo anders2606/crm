@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 
 export interface AuditEntry {
   userId: string | null;
-  action: 'create' | 'update' | 'delete' | 'login' | 'login_failed' | 'logout';
+  action: 'create' | 'update' | 'delete' | 'login' | 'login_failed' | 'logout' | 'restore';
   entityType: string;
   entityId?: string | null;
   before?: unknown;

@@ -121,6 +121,11 @@ export default async function DashboardPage() {
             API-nøkler
           </Link>
         )}
+        {hasPermission(session, PERMISSIONS.BACKUP_MANAGE) && (
+          <Link href="/admin/backup" className="underline">
+            Backup og gjenoppretting
+          </Link>
+        )}
         <Link href="/governing-documents" className="underline">
           Planer og styrende dokumenter
         </Link>

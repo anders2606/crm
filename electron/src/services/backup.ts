@@ -19,9 +19,26 @@ export function runBackupNow(port: number): void {
   const dbFilePath = path.join(getBackupsDir(), `db-${timestamp}.sql`);
   const filesArchivePath = path.join(getBackupsDir(), `files-${timestamp}.tar.gz`);
 
+  // DR-06: kun data (--data-only), som gjenopprettingssiden i admin (se
+  // src/lib/backup.ts) kjører mot et allerede migrert skjema – unngår
+  // versjonskrøll mellom skjemaet i en gammel dump og senere migreringer.
+  // --inserts gjør dumpen til ren, portabel SQL (INSERT-setninger) som kan
+  // kjøres direkte via Prisma sin rå SQL-spørring, uten pg_restore/psql sin
+  // COPY-strømming, som en generisk SQL-driver ikke støtter. Prisma sin egen
+  // migreringstabell ekskluderes – den har allerede riktig innhold fra
+  // migreringene som alltid kjører før en gjenoppretting, og ville ellers
+  // kollidert med constraint-feil (samme rader finnes fra før).
   const dumpResult = spawnSync(
     getPgDumpBinary(),
-    ['--format=plain', '--file', dbFilePath, ...getConnectionArgs(port)],
+    [
+      '--data-only',
+      '--inserts',
+      '--exclude-table=_prisma_migrations',
+      '--format=plain',
+      '--file',
+      dbFilePath,
+      ...getConnectionArgs(port),
+    ],
     { stdio: 'inherit' },
   );
   if (dumpResult.status !== 0) {

@@ -19,7 +19,7 @@ import { buildDatabaseUrl, ensureDatabaseExists, isPostgresBundled, startPostgre
 import { startWebServer, stopWebServer, waitForWebServerReady } from './services/webServer';
 import { startWorker, stopWorker } from './services/worker';
 import { createTray, updateTrayStatus, type TrayCallbacks } from './tray';
-import { getDocumentsDir, writeChosenDataDir } from './paths';
+import { getBackupsDir, getDocumentsDir, writeChosenDataDir } from './paths';
 import { runSetupWizard } from './wizard/window';
 import type { WizardSubmission } from './wizard/preload';
 
@@ -37,6 +37,41 @@ let currentPort = 3000;
 let currentPostgresPort = 55432;
 let currentEncryptionKey: string | null = null;
 let trayCallbacks: TrayCallbacks;
+let dailyBackupTimer: ReturnType<typeof setInterval> | null = null;
+
+// DR-06: «daglig databasedump og filer» – backup tas allerede ved hver
+// oppstart (DR-03), men en servermodus-Mac mini kan stå på i ukevis uten
+// restart, så det trengs i tillegg en tilbakevendende jobb mens appen
+// kjører. Sjekkes hver time i stedet for å sette opp én 24-timers-timer,
+// slik at en tidligere manuell «Ta backup nå» (eller en nylig oppstart)
+// ikke fører til at det også tas en unødvendig ekstra en rett etterpå.
+const BACKUP_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+let lastBackupAt = 0;
+
+function scheduleDailyBackup(): void {
+  lastBackupAt = Date.now();
+  if (dailyBackupTimer) {
+    return;
+  }
+  dailyBackupTimer = setInterval(() => {
+    if (Date.now() - lastBackupAt < 24 * 60 * 60 * 1000) {
+      return;
+    }
+    try {
+      runBackupNow(currentPostgresPort);
+      lastBackupAt = Date.now();
+    } catch (error) {
+      console.error('[main] Planlagt daglig backup feilet:', error);
+    }
+  }, BACKUP_CHECK_INTERVAL_MS);
+}
+
+function stopDailyBackupSchedule(): void {
+  if (dailyBackupTimer) {
+    clearInterval(dailyBackupTimer);
+    dailyBackupTimer = null;
+  }
+}
 
 /** DR-03: start database, ta backup, kjør migreringer. Felles for både veiviseren og vanlig oppstart. */
 async function prepareDatabase(config: AppConfig): Promise<{ databaseUrl: string; encryptionKey: string }> {
@@ -78,12 +113,16 @@ async function startAppServices(databaseUrl: string, encryptionKey: string, port
     DATABASE_URL: databaseUrl,
     ENCRYPTION_KEY: encryptionKey,
     STORAGE_DIR: getDocumentsDir(),
+    // DR-06: gjenopprettingssiden i admin (src/lib/backup.ts) må vite hvor
+    // backupene ligger for å kunne liste og gjenopprette fra dem.
+    BACKUP_DIR: getBackupsDir(),
     NODE_ENV: 'production',
   };
   startWebServer(sharedEnv, port);
   startWorker(sharedEnv);
   await waitForWebServerReady(port);
   currentEncryptionKey = encryptionKey;
+  scheduleDailyBackup();
 }
 
 /**
@@ -162,6 +201,7 @@ async function startServices(): Promise<void> {
 }
 
 async function stopServices(): Promise<void> {
+  stopDailyBackupSchedule();
   stopWorker();
   stopWebServer();
   await stopPostgres();
