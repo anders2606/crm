@@ -53,6 +53,7 @@ export PIETRA_UNICA_RESOURCES_DIR=/tmp/pu-dev-resources
 <resources>/
   postgres/bin/{postgres,initdb,createdb,pg_dump,pg_restore}
   postgres/lib/                  (delte biblioteker binærene over er lenket mot – IKKE valgfri, se resources/postgres/README.md)
+  postgres/share/                (postgres.bki, tidssonedata osv. som initdb trenger – IKKE valgfri, se resources/postgres/README.md)
   app/                     (kopi av ../.next/standalone)
   app/.next/static/        (kopi av ../.next/static)
   app/prisma/              (kopi av ../prisma, for migreringer)
@@ -233,13 +234,42 @@ faktiske avhengighetslisten neste kjøring, fremfor å gjette blindt).
 bare `bin/`. `electron/resources/postgres/README.md` oppdatert til å kreve
 `lib/`-mappen eksplisitt for et manuelt Mac-bygg også.
 
-**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at dette faktisk
-løser problemet – kan igjen kun bekreftes ved at eier prøver en ny DMG.
-Hvis det fortsatt feiler, vil `otool -L`-loggen i GitHub Actions-kjøringen
-og en eventuell fanget stderr-tekst i den nye feilmeldingen (se
-`processUtils.ts`, som nå inkluderer fanget utdata selv når prosessen ble
-drept av et signal) vise nøyaktig hvilket bibliotek som fortsatt mangler
-eller feiler, i stedet for å måtte gjette på nytt.
+**Bekreftet delvis:** eier prøvde en ny DMG med lib/-fiksen, og denne gangen
+kjørte `initdb` FAKTISK (verken `null` eller et signal lenger) – `otool -L`
+i den påfølgende GitHub Actions-kjøringen bekreftet også nøyaktig hvorfor:
+`initdb` er lenket mot `@loader_path/../lib/libpq.5.dylib` og
+`@loader_path/../lib/libicuuc.68.2.dylib` (relative stier, akkurat slik
+«relokerbar» skulle tilsi), og alle 278 filene i `bin/`+`lib/` (begge
+arkitekturer) ble ad-hoc-signert uten en eneste feil.
+
+**Runde 3:** `initdb` feilet i stedet med en ekte, presis feil fra initdb
+selv: `file .../postgres/share/postgresql/postgres.bki does not exist`.
+Nøyaktig samme klasse problem som `lib/`, bare én mappe til – `initdb`
+trenger referansedataene sine (`postgres.bki`, tidssoner osv.) fra en
+sidestilt `pgsql/share/`, som heller ALDRI ble kopiert inn (kun `bin/` og,
+etter forrige runde, `lib/`). Rettet på samme måte: workflowen kopierer nå
+hele `pgsql/share/` inn i `resources/postgres/share/` også, med en
+selvsjekk (feiler tydelig med en gang hvis `postgres.bki` mangler etter
+kopiering, i stedet for å oppdage det først når eier tester) – samme
+prinsipp som `lipo`-arkitektursjekken.
+
+Feilmeldingen inneholdt for øvrig en sti under
+`.../AppTranslocation/<GUID>/d/...` – macOS sin «Gatekeeper path
+randomization» for nedlastede, ennå-ikke-flyttede apper. Ikke roten til
+DENNE feilen (selve `share/`-mappen manglet uansett, uavhengig av hvor
+appen kjørte fra), men verdt å vite om: så lenge appens egen datamappe
+alltid går via `app.getPath('userData')` (Electron sin egen, faste
+plassering – uavhengig av hvor selve `.app`-bunten ligger eller er
+«translokert» til, se `paths.ts`) burde ikke dette i seg selv skape
+problemer for appens EGEN databaselogikk, kun vises i stier til ting INNI
+selve `.app`-bunten slik som her.
+
+**IKKE VERIFISERT av Claude i denne utviklingsøkten:** at `share/`-fiksen
+faktisk er den siste brikken – kan igjen kun bekreftes ved at eier prøver
+en ny DMG. Mønsteret så langt (binærer → biblioteker → referansedata) er
+alle sidestilte mapper PostgreSQL sin egen relokerbare oppsett forventer;
+hvis noe fortsatt mangler, vil samme `otool -L`/selvsjekk-tilnærming
+brukes til å finne det, i stedet for å gjette.
 
 ## Hva som er verifisert (fra denne Linux-økten)
 

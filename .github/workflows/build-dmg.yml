@@ -116,7 +116,7 @@ jobs:
             fi
             echo "Brukte versjon $FOUND"
             unzip -q /tmp/postgres-binaries.zip -d /tmp/postgres-extract
-            rm -rf resources/postgres/bin resources/postgres/lib
+            rm -rf resources/postgres/bin resources/postgres/lib resources/postgres/share
             mkdir -p resources/postgres/bin
             cp /tmp/postgres-extract/pgsql/bin/postgres resources/postgres/bin/
             cp /tmp/postgres-extract/pgsql/bin/initdb resources/postgres/bin/
@@ -139,8 +139,30 @@ jobs:
               echo "::warning::Fant ingen pgsql/lib/-mappe i EDB sin nedlasting - hvis binærene er dynamisk lenket, vil de mangle sine avhengigheter."
             fi
 
+            # initdb finner sine referansedata (postgres.bki - definerer det
+            # innledende systemkatalog-innholdet i en helt fersk klynge,
+            # tidssoner osv.) i en sidestilt pgsql/share/ på samme måte som
+            # lib/ over - IKKE valgfri. Ekte feil oppdaget av eier ETTER at
+            # signering+lib/ var på plass: "file .../postgres/share/
+            # postgresql/postgres.bki does not exist" - initdb kjørte altså
+            # nå faktisk, men manglet denne mappen fullstendig.
+            if [ -d /tmp/postgres-extract/pgsql/share ]; then
+              mkdir -p resources/postgres/share
+              cp -R /tmp/postgres-extract/pgsql/share/. resources/postgres/share/
+            else
+              echo "::warning::Fant ingen pgsql/share/-mappe i EDB sin nedlasting - initdb vil mangle postgres.bki og tidssonedata."
+            fi
+
             echo "--- otool -L resources/postgres/bin/initdb (avhengigheter og hvordan de er lenket) ---"
             otool -L resources/postgres/bin/initdb || true
+
+            # Selvverifiserende, samme prinsipp som lipo-sjekken under: ikke
+            # stol blindt på at pgsql/share/ faktisk inneholder det initdb
+            # trenger - denne filen manglet nettopp i praksis (se over).
+            if [ ! -f resources/postgres/share/postgresql/postgres.bki ]; then
+              echo "::error::resources/postgres/share/postgresql/postgres.bki finnes ikke etter kopiering - initdb vil garantert feile med dette. Sjekk at EDB sin nedlasting faktisk inneholder pgsql/share/postgresql/." >&2
+              exit 1
+            fi
 
             # Selvverifiserende: EDB sin nedlasting har ingen arkitektur i
             # filnavnet, så vi kan ikke stole blindt på at den faktisk
